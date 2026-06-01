@@ -1,0 +1,36 @@
+post:
+  summary: Convert PDF to PDF/A-3
+  operationId: convertPdf
+  tags:
+    - Conversion
+  requestBody:
+    required: true
+    content:
+      multipart/form-data:
+        schema:
+          type: object
+          properties:
+            file:
+              type: string
+              format: binary
+              description: The PDF file to convert
+  responses:
+    '200':
+      description: Successfully converted PDF
+      content:
+        application/pdf:
+          schema:
+            type: string
+            format: binary
+    '400':
+      description: Invalid input
+      content:
+        application/problem+json:
+          schema:
+            $ref: '../components/schemas/ErrorResponse.yaml'
+    '500':
+      description: Server error
+      content:
+        application/problem+json:
+          schema:
+            $ref: '../components/schemas/ErrorResponse.yaml'

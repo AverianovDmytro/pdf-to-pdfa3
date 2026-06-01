@@ -1,0 +1,15 @@
+openapi: 3.0.3
+info:
+  title: PDF to PDF/A-3 Conversion API
+  description: API for converting PDF files to PDF/A-3 format.
+  version: 1.0.0
+servers:
+  - url: /api/v1
+    description: v1 API
+paths:
+  /convert:
+    $ref: './paths/convert.yaml'
+components:
+  schemas:
+    ErrorResponse:
+      $ref: './components/schemas/ErrorResponse.yaml'
