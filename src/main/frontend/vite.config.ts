@@ -11,7 +11,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../../../target/classes/static',
+    outDir: '../resources/static',
     emptyOutDir: true,
     rollupOptions: {
       output: {

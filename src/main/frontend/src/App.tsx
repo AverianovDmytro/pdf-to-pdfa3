@@ -59,12 +59,12 @@ function App() {
         </div>
 
         <div className="space-y-6">
-          <div
+          <label
+            htmlFor="file-upload"
             className={cn(
-              "border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
+              "border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer block",
               file ? "border-primary bg-primary/5" : "border-gray-300 hover:border-primary"
             )}
-            onClick={() => document.getElementById('file-upload')?.click()}
           >
             <input
               id="file-upload"
@@ -86,7 +86,7 @@ function App() {
                 <span className="text-xs text-gray-500">Only PDF files are supported</span>
               </div>
             )}
-          </div>
+          </label>
 
           <button
             disabled={!file || loading}

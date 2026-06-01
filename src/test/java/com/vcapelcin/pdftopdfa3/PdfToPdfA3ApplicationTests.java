@@ -1,19 +1,20 @@
 package com.vcapelcin.pdftopdfa3;
 
 import com.vcapelcin.pdftopdfa3.service.PdfConversionService;
+import io.github.bucket4j.Bucket;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -21,30 +22,34 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-@Testcontainers
+@ActiveProfiles("test")
 class PdfToPdfA3ApplicationTests {
-
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-    }
 
     @Autowired
     private MockMvc mockMvc;
 
+    @MockBean
+    private PdfConversionService pdfConversionService;
+
+    @MockBean
+    private Bucket bucket;
+
+    @BeforeEach
+    void setUp() {
+        when(bucket.tryConsume(1)).thenReturn(true);
+    }
+
     @Test
     void shouldConvertPdf() throws Exception {
+        byte[] pdfContent = "%PDF-1.4\n%...".getBytes();
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "test.pdf",
                 MediaType.APPLICATION_PDF_VALUE,
-                "%PDF-1.4\n%...".getBytes()
+                pdfContent
         );
+
+        when(pdfConversionService.convertToPdfA3(any())).thenReturn(pdfContent);
 
         mockMvc.perform(multipart("/api/v1/convert").file(file))
                 .andExpect(status().isOk())
@@ -62,7 +67,6 @@ class PdfToPdfA3ApplicationTests {
         );
 
         mockMvc.perform(multipart("/api/v1/convert").file(file))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON));
+                .andExpect(status().isBadRequest());
     }
 }

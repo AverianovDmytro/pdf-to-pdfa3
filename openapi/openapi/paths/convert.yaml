@@ -25,12 +25,14 @@ post:
     '400':
       description: Invalid input
       content:
-        application/problem+json:
+        application/json:
           schema:
             $ref: '../components/schemas/ErrorResponse.yaml'
+    '429':
+      description: Too many requests
     '500':
       description: Server error
       content:
-        application/problem+json:
+        application/json:
           schema:
             $ref: '../components/schemas/ErrorResponse.yaml'
