@@ -83,7 +83,7 @@ To test the service in Postman:
 
 ## Microsoft Dynamics Navision (NAV) Integration
 
-Below is a C/AL code snippet for calling the service from Microsoft Dynamics NAV using DotNet Interop (System.Net.Http).
+In Microsoft Dynamics NAV (Navision), you can use the `Microsoft XML, v6.0` automation or `DotNet` variables (for NAV 2013 and later) to call a REST service. Since C/AL is often used in older environments, the following example uses **DotNet Interop** with `System.Net.Http` (available in NAV 2013 R2+) as it is more robust for `multipart/form-data` requests.
 
 ### C/AL Code Snippet
 
@@ -99,7 +99,7 @@ VAR
   FileMode : DotNet "'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089'.System.IO.FileMode";
   ServiceUrl : Text;
 BEGIN
-  // Replace with your actual service URL
+  // Replace with your actual service URL (default: http://localhost:8084)
   ServiceUrl := 'http://your-server:8084/api/v1/convert';
 
   HttpClient := HttpClient.HttpClient();
@@ -129,4 +129,4 @@ BEGIN
 END;
 ```
 
-For more details on Navision implementation, see [navision/code snippet.md](./navision/code%20snippet.md).
+For more details on Navision implementation and prerequisites, see [navision/code snippet.md](./navision/code%20snippet.md).

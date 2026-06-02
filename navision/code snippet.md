@@ -3,7 +3,7 @@
 In Microsoft Dynamics NAV (Navision), you can use the `Microsoft XML, v6.0` automation or `DotNet` variables (for NAV 2013 and later) to call a REST service. Since C/AL is often used in older environments, the following example uses **DotNet Interop** with `System.Net.Http` (available in NAV 2013 R2+) as it is more robust for `multipart/form-data` requests.
 
 #### Prerequisites
-- The service is running (e.g., at `http://your-server:8080/api/v1/convert`).
+- The service is running (e.g., at `http://your-server:8084/api/v1/convert`).
 - You have the PDF file saved locally or in a stream.
 
 #### C/AL Code Snippet
@@ -30,7 +30,7 @@ OBJECT Codeunit 50000 PDF Converter
     Task : DotNet "'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089'.System.Threading.Tasks.Task";
     ServiceUrl : Text;
   BEGIN
-    ServiceUrl := 'http://your-server:8080/api/v1/convert';
+    ServiceUrl := 'http://your-server:8084/api/v1/convert';
 
     // 1. Initialize HttpClient and Content
     HttpClient := HttpClient.HttpClient();
