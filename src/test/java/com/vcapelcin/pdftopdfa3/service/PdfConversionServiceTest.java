@@ -1,5 +1,6 @@
 package com.vcapelcin.pdftopdfa3.service;
 
+import com.vcapelcin.pdftopdfa3.repository.ConversionRepository;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,52 @@ class PdfConversionServiceTest {
 
     @Autowired
     private PdfConversionService pdfConversionService;
+
+    @Autowired
+    private ConversionRepository conversionRepository;
+
+    @Test
+    void testConversionPersistence() throws Exception {
+        byte[] pdfContent;
+        try (PDDocument document = new PDDocument()) {
+            document.addPage(new PDPage());
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            document.save(baos);
+            pdfContent = baos.toByteArray();
+        }
+        MockMultipartFile file = new MockMultipartFile("file", "persistence_test.pdf", "application/pdf", pdfContent);
+
+        long beforeCount = conversionRepository.count();
+        pdfConversionService.convertToPdfA3(file);
+        long afterCount = conversionRepository.count();
+
+        assertEquals(beforeCount + 1, afterCount);
+        var conversions = conversionRepository.findAll();
+        var lastConversion = conversions.get(conversions.size() - 1);
+        assertEquals("persistence_test.pdf", lastConversion.getFilename());
+        assertEquals("persistence_test_a3.pdf", lastConversion.getTargetFilename());
+        assertEquals("COMPLETED", lastConversion.getStatus());
+        assertNotNull(lastConversion.getOriginalSize());
+        assertNotNull(lastConversion.getConvertedSize());
+        assertNotNull(lastConversion.getProcessingTimeMs());
+    }
+
+    @Test
+    void testFailedConversionPersistence() {
+        byte[] invalidContent = "Hello World".getBytes();
+        MockMultipartFile file = new MockMultipartFile("file", "failed_test.txt", "text/plain", invalidContent);
+
+        long beforeCount = conversionRepository.count();
+        assertThrows(Exception.class, () -> pdfConversionService.convertToPdfA3(file));
+        long afterCount = conversionRepository.count();
+
+        assertEquals(beforeCount + 1, afterCount);
+        var conversions = conversionRepository.findAll();
+        var lastConversion = conversions.get(conversions.size() - 1);
+        assertEquals("failed_test.txt", lastConversion.getFilename());
+        assertEquals("FAILED", lastConversion.getStatus());
+        assertNotNull(lastConversion.getErrorMessage());
+    }
 
     @Test
     void testIsPdfFileWithValidPdf() throws Exception {

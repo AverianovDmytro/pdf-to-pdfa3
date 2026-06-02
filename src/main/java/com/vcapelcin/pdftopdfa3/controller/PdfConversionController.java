@@ -18,7 +18,7 @@ import java.io.IOException;
 @RestController
 @RequestMapping("/api/v1")
 @Slf4j
-class PdfConversionController {
+public class PdfConversionController {
     private final PdfConversionService pdfConversionService;
     private final Bucket bucket;
 

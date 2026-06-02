@@ -1,5 +1,8 @@
 package com.vcapelcin.pdftopdfa3.service;
 
+import com.vcapelcin.pdftopdfa3.model.Conversion;
+import com.vcapelcin.pdftopdfa3.repository.ConversionRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -30,7 +33,10 @@ import java.util.Calendar;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class PdfConversionService {
+
+    private final ConversionRepository conversionRepository;
 
     @Async
     public CompletableFuture<byte[]> convertToPdfA3Async(MultipartFile file) throws IOException {
@@ -38,14 +44,29 @@ public class PdfConversionService {
     }
 
     public byte[] convertToPdfA3(MultipartFile file) throws IOException {
-        log.debug("Starting PDF to PDF/A-3 conversion for file: {}", file.getOriginalFilename());
+        long startTime = System.currentTimeMillis();
+        String originalFilename = file.getOriginalFilename();
+        log.debug("Starting PDF to PDF/A-3 conversion for file: {}", originalFilename);
+
+        Conversion conversion = Conversion.builder()
+                .filename(originalFilename)
+                .status("PROCESSING")
+                .build();
+        conversion = conversionRepository.save(conversion);
+
         if (!isPdfFile(file)) {
-            log.error("File is not a valid PDF: {}", file.getOriginalFilename());
+            log.error("File is not a valid PDF: {}", originalFilename);
+            updateConversionStatus(conversion, "FAILED", "Invalid file type. Only PDF files are allowed.", startTime);
             throw new IOException("Invalid file type. Only PDF files are allowed.");
         }
         try (InputStream is = file.getInputStream()) {
             byte[] fileBytes = is.readAllBytes();
-            log.debug("Read {} bytes from file: {}", fileBytes.length, file.getOriginalFilename());
+            conversion.setOriginalSize((long) fileBytes.length);
+            log.debug("Read {} bytes from file: {}", fileBytes.length, originalFilename);
+            
+            String targetFilename = (originalFilename != null ? originalFilename.replace(".pdf", "") : "converted") + "_a3.pdf";
+            conversion.setTargetFilename(targetFilename);
+
             try (PDDocument document = Loader.loadPDF(fileBytes)) {
                 embedFonts(document);
                 makePdfA3(document);
@@ -57,14 +78,31 @@ public class PdfConversionService {
                 validatePdfA3(convertedBytes);
                 
                 log.debug("Successfully created PDF/A-3 document, size: {} bytes", convertedBytes.length);
+                
+                conversion.setConvertedSize((long) convertedBytes.length);
+                updateConversionStatus(conversion, "COMPLETED", null, startTime);
+                
                 return convertedBytes;
             }
         } catch (IOException e) {
-            log.error("IOException during PDF conversion for file: {}", file.getOriginalFilename(), e);
+            log.error("IOException during PDF conversion for file: {}", originalFilename, e);
+            updateConversionStatus(conversion, "FAILED", e.getMessage(), startTime);
             throw e;
         } catch (Exception e) {
-            log.error("Unexpected error during PDF conversion for file: {}", file.getOriginalFilename(), e);
+            log.error("Unexpected error during PDF conversion for file: {}", originalFilename, e);
+            updateConversionStatus(conversion, "FAILED", e.getMessage(), startTime);
             throw new IOException("Error during PDF conversion", e);
+        }
+    }
+
+    private void updateConversionStatus(Conversion conversion, String status, String errorMessage, long startTime) {
+        try {
+            conversion.setStatus(status);
+            conversion.setErrorMessage(errorMessage);
+            conversion.setProcessingTimeMs(System.currentTimeMillis() - startTime);
+            conversionRepository.save(conversion);
+        } catch (Exception e) {
+            log.error("Failed to update conversion status in database", e);
         }
     }
 
