@@ -122,7 +122,7 @@ function App() {
       </div>
       
       <footer className="mt-8 text-gray-400 text-sm">
-        AS-Software
+        AS-Soft Business Solutions
       </footer>
     </div>
   );
