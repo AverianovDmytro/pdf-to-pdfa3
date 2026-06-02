@@ -122,7 +122,7 @@ function App() {
       </div>
       
       <footer className="mt-8 text-gray-400 text-sm">
-        Built with Spring Boot & React
+        AS-Software
       </footer>
     </div>
   );
