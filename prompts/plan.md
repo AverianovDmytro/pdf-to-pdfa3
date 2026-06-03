@@ -1,60 +1,47 @@
-# Implementation Plan: ZUGFeRD PDF/A-3 Conversion Service
+# Project Improvement Plan: PDF to PDF/A-3 Conversion Tool
 
-This document outlines the detailed steps required to implement the ZUGFeRD-compliant PDF/A-3 conversion service, as specified in `prompts/requirements.md`.
+This plan outlines the steps required to complete the features identified in `prompts/requirements.md` and further enhance the application's robustness and user experience.
 
-## 1. Backend Enhancements
+## Phase 1: Frontend Enhancements
 
-### 1.1 Model & Persistence
-- **Task**: Update `Conversion` entity to track the XML file.
-- **Action**: Add `xml_filename` and `xml_size` fields to `com.vcapelcin.pdftopdfa3.model.Conversion`.
-- **Action**: Create a Flyway/Liquibase migration or let JPA update the schema (depending on environment).
+### 1.1 Document Upload Improvements
+- **File Validation:** Implement client-side validation in `FileUpload.tsx` and `App.tsx` to strictly enforce `.pdf` and `.xml` extensions.
+- **File Metadata Display:** Update the upload zones to display file size and other relevant metadata once a file is selected.
+- **Status Reset:** Add a "Reset" or "Clear" button to allow users to start over easily.
 
-### 1.2 Service Layer (`PdfConversionService.java`)
-- **Task**: Implement XML embedding and PDF/A-3 metadata.
-- **Action**: Modify `convertToPdfA3` to accept an optional `MultipartFile xmlFile`.
-- **Action**: Implement `embedZugferdXml(PDDocument document, byte[] xmlBytes, String filename)`:
-  - Create `PDEmbeddedFile` from XML bytes.
-  - Set subtype to `text/xml`.
-  - Create `PDComplexFileSpecification` and associate it with the document's `EF` (EmbeddedFiles) dictionary.
-  - Add the file specification to the `/AF` (Associated Files) array in the document catalog (required for PDF/A-3).
-  - Set the relationship to `Alternative` (specifically `Data` for ZUGFeRD).
-- **Action**: Update `makePdfA3` to include ZUGFeRD extension schema in XMP metadata (if not already present).
-- **Action**: Ensure color profile (sRGB) is correctly embedded as `PDOutputIntent`.
+### 1.2 XML Data Preview
+- **Data Extraction:** Implement logic to parse the uploaded ZUGFeRD XML file on the client side (or via a dedicated backend preview endpoint).
+- **Structured Display:** Create a new component `XMLPreview` to display:
+    - Invoice summary (Number, Date, Currency).
+    - Supplier/Buyer details.
+    - Line item table.
+    - Totals and VAT breakdown.
+- **Tabbed Interface:** Implement a toggle or tab system in the right column to switch between "PDF Preview" and "XML Data Preview".
 
-### 1.3 Controller Layer (`PdfConversionController.java`)
-- **Task**: Update API to accept two files.
-- **Action**: Update `@PostMapping("/convert")` to accept:
-  - `@RequestParam("file") MultipartFile file`
-  - `@RequestParam(value = "xmlFile", required = false) MultipartFile xmlFile`
-- **Action**: Update logic to pass `xmlFile` to the service.
+## Phase 2: Backend & Security
 
-## 2. Frontend Enhancements (`src/main/frontend`)
+### 2.1 Enhanced Validation
+- **XSD Validation:** Ensure the backend strictly validates the ZUGFeRD XML against the official schemas.
+- **Business Logic Checks:** Implement checks to ensure the data in the XML matches the context of the PDF (where possible).
+- **Security Audit:** Review file upload handling for potential vulnerabilities (e.g., zip slips, large file DoS).
 
-### 2.1 UI Components (`App.tsx`)
-- **Task**: Add XML file upload capability.
-- **Action**: Add a second file input state for the XML file.
-- **Action**: Update the dropzone/input to handle both PDF and XML files (or add a separate input for XML).
-- **Action**: Display the selected XML filename and size.
+### 2.2 API Improvements
+- **Preview Endpoint:** Consider adding a lightweight endpoint to return JSON representation of the ZUGFeRD XML for the frontend preview.
+- **Error Reporting:** Refine the `ErrorResponse` structure to provide more granular feedback for XSD validation errors.
 
-### 2.2 API Integration
-- **Task**: Update `handleUpload` to send both files.
-- **Action**: Append `xmlFile` to `FormData` if selected.
-- **Action**: Improve error messaging to handle backend validation errors.
+## Phase 3: UI/UX & Quality Assurance
 
-## 3. Testing & Validation
+### 3.1 Design Polish
+- **Responsive Design:** Verify and fix any layout issues on smaller screens.
+- **Accessibility:** Ensure all interactive elements (buttons, dropzones) are keyboard accessible and have proper ARIA labels.
 
-### 3.1 Unit Testing (`PdfConversionServiceTest.java`)
-- **Task**: Verify XML embedding.
-- **Action**: Add `testConversionWithXmlEmbedding` test case.
-- **Action**: Assert that the output PDF contains the embedded XML file.
-- **Action**: Assert that the PDF remains PDF/A-3 compliant.
+### 3.2 Testing & Linting
+- **Fix Build Errors:** Resolve any existing TypeScript or Tailwind CSS build issues.
+- **Unit Testing:** Add Vitest/React Testing Library tests for the new `XMLPreview` and validation logic.
+- **Linting:** Ensure all code passes `npm run lint` without warnings.
 
-### 3.2 Manual Validation
-- **Task**: Verify with external tools.
-- **Action**: Test the output with [VeraPDF](https://verapdf.org/) for PDF/A-3 compliance.
-- **Action**: Test the output with ZUGFeRD validators to ensure the XML is correctly associated.
+## Phase 4: Integration & Deployment
 
-## 4. Documentation
-- **Task**: Update `README.md` and OpenAPI spec.
-- **Action**: Document the new `xmlFile` parameter in the API section.
-- **Action**: Provide a Postman/cURL example for the dual-file upload.
+### 4.1 Deployment Readiness
+- **Production Build:** Verify the `npm run build` output and its integration with Spring Boot's static resources.
+- **Docker Verification:** Ensure the `docker-compose.yaml` correctly builds and serves the latest version of both frontend and backend.

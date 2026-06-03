@@ -1,6 +1,7 @@
 package com.vcapelcin.pdftopdfa3.controller;
 
 import com.vcapelcin.pdftopdfa3.service.PdfConversionService;
+import com.vcapelcin.pdftopdfa3.service.XmlValidationService;
 import io.github.bucket4j.Bucket;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -14,26 +15,35 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1")
 @Slf4j
 public class PdfConversionController {
     private final PdfConversionService pdfConversionService;
+    private final XmlValidationService xmlValidationService;
     private final Bucket bucket;
 
-    public PdfConversionController(PdfConversionService pdfConversionService, Bucket bucket) {
+    public PdfConversionController(PdfConversionService pdfConversionService, 
+                                 XmlValidationService xmlValidationService,
+                                 Bucket bucket) {
         this.pdfConversionService = pdfConversionService;
+        this.xmlValidationService = xmlValidationService;
         this.bucket = bucket;
     }
 
     @PostMapping(value = "/convert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     ResponseEntity<byte[]> convertPdf(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "xmlFile", required = false) MultipartFile xmlFile) throws IOException {
-        log.info("Received request to convert file: {} (with xml: {})", 
+            @RequestParam(value = "xmlFile", required = false) MultipartFile xmlFile,
+            @RequestParam(value = "profile", defaultValue = "BASIC") String profile) throws Exception {
+        log.info("Received request to convert file: {} (with xml: {}, profile: {})", 
                 file.getOriginalFilename(), 
-                xmlFile != null ? xmlFile.getOriginalFilename() : "none");
+                xmlFile != null ? xmlFile.getOriginalFilename() : "none",
+                profile);
         if (!bucket.tryConsume(1)) {
             log.warn("Rate limit exceeded for file: {}", file.getOriginalFilename());
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
@@ -43,8 +53,21 @@ public class PdfConversionController {
             throw new IllegalArgumentException("File is empty");
         }
 
+        if (xmlFile != null && !xmlFile.isEmpty()) {
+            List<String> xmlErrors = xmlValidationService.validateXml(xmlFile.getBytes());
+            if (!xmlErrors.isEmpty()) {
+                log.warn("XML Validation failed for file: {}. Errors: {}", xmlFile.getOriginalFilename(), xmlErrors);
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("message", "ZUGFeRD XML validation failed");
+                errorResponse.put("errors", xmlErrors);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(convertMapToBytes(errorResponse));
+            }
+        }
+
         try {
-            byte[] convertedPdf = pdfConversionService.convertToPdfA3(file, xmlFile);
+            byte[] convertedPdf = pdfConversionService.convertToPdfA3(file, xmlFile, profile);
 
             String originalFilename = file.getOriginalFilename();
             String newFilename = (originalFilename != null ? originalFilename.replace(".pdf", "") : "converted") + "_a3.pdf";
@@ -58,6 +81,14 @@ public class PdfConversionController {
         } catch (Exception e) {
             log.error("Failed to convert PDF file: {}", file.getOriginalFilename(), e);
             throw e;
+        }
+    }
+
+    private byte[] convertMapToBytes(Map<String, Object> map) {
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsBytes(map);
+        } catch (IOException e) {
+            return "{\"message\": \"Internal error\"}".getBytes();
         }
     }
 }
