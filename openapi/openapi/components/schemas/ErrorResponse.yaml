@@ -13,3 +13,7 @@ properties:
     type: string
   errorCode:
     type: string
+  errors:
+    type: array
+    items:
+      type: string

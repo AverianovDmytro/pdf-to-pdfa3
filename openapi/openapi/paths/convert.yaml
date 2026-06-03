@@ -14,6 +14,14 @@ post:
               type: string
               format: binary
               description: The PDF file to convert
+            xmlFile:
+              type: string
+              format: binary
+              description: Optional ZUGFeRD XML file to embed
+            profile:
+              type: string
+              description: ZUGFeRD conformance level (e.g., BASIC, COMFORT, EXTENDED)
+              default: BASIC
   responses:
     '200':
       description: Successfully converted PDF

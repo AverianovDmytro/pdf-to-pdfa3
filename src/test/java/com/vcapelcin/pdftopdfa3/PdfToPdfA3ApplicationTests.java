@@ -49,7 +49,7 @@ class PdfToPdfA3ApplicationTests {
                 pdfContent
         );
 
-        when(pdfConversionService.convertToPdfA3(any())).thenReturn(pdfContent);
+        when(pdfConversionService.convertToPdfA3(any(), any())).thenReturn(pdfContent);
 
         mockMvc.perform(multipart("/api/v1/convert").file(file))
                 .andExpect(status().isOk())

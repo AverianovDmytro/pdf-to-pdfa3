@@ -1,51 +1,48 @@
-# Task List: ZUGFeRD PDF/A-3 Conversion Service Implementation
+# Task List: UI Redesign & Developer Guide Implementation
 
-## 1. Backend Enhancements
+## Phase 1: Styling Foundation & Global Configuration
+1. [x] **Color Palette Refinement**
+   - [x] Review current CSS variables in `src/main/frontend/src/index.css`.
+   - [x] Extract hex colors from `/styles/style_finance.png` for Background, Primary, Secondary, and Text.
+   - [x] Update `tailwind.config.js` to use descriptive names (e.g., `brand-primary`, `surface-muted`).
+2. [x] **Typography Setup**
+   - [x] Import Google Fonts (Poppins, Inter, or Roboto) in `src/main/frontend/src/index.css`.
+   - [x] Update `tailwind.config.js` to set the selected font as the default `sans` stack.
+3. [x] **Global Effects & Spacing**
+   - [x] Standardize `border-radius` to `2xl` or `3xl` in `tailwind.config.js` and components.
+   - [x] Refine `shadow-layered` utility in `tailwind.config.js` for soft, depth-giving effects.
+   - [x] Increase base font sizes and line heights across the application for a "friendly" feel.
 
-### 1.1 Model & Persistence
-1. [ ] Add `xmlFilename` (String) and `xmlSize` (Long) fields to `com.vcapelcin.pdftopdfa3.model.Conversion`.
-2. [ ] Ensure database schema is updated (JPA auto-update or migration).
+## Phase 2: Component Overhaul & Visual Identity
+4. [x] **Iconography Update**
+   - [x] Audit all components for icon usage.
+   - [x] Replace generic icons (e.g., from `lucide-react`) with **Iconify Solar Linear Icons**.
+   - [x] Standardize brand logos using **Iconify Simple Icons** at `96x36px`.
+5. [x] **Imagery Integration**
+   - [x] Replace static or missing images with high-quality Unsplash placeholders.
+   - [x] Match the "Secure Archiving" and "FinTech" mood in Hero and feature sections.
+6. [x] **Layout & Grid Refinement**
+   - [x] Ensure generous whitespace (padding/margin) between main UI blocks.
+   - [x] Verify responsive behavior of the multi-column layout.
 
-### 1.2 Service Layer (`PdfConversionService.java`)
-3. [ ] Update `convertToPdfA3` and `convertToPdfA3Async` method signatures to accept `MultipartFile xmlFile`.
-4. [ ] Implement `embedZugferdXml` method to handle:
-    - [ ] Creation of `PDEmbeddedFile` from XML bytes.
-    - [ ] Setting MIME type to `text/xml`.
-    - [ ] Creation of `PDComplexFileSpecification` and association with `EF` dictionary.
-    - [ ] Adding file specification to `/AF` array in document catalog.
-    - [ ] Setting relationship to `Data` (for ZUGFeRD compliance).
-5. [ ] Update `makePdfA3` to include ZUGFeRD extension schema in XMP metadata.
-6. [ ] Verify sRGB color profile embedding via `PDOutputIntent`.
-7. [ ] Update `updateConversionStatus` to include XML metadata logging.
+## Phase 3: Enhanced Interactivity & Feedback
+7. [x] **FileUpload Enhancement**
+   - [x] Improve the drag-and-drop zone's visual feedback (hover, active states).
+   - [x] Add clearer success/error animations or transitions.
+8. [x] **Preview Section Optimization**
+   - [x] Ensure PDF and XML previews are prominent and easily switchable.
+   - [x] Add loading skeletons or placeholders while previews are rendering.
+9. [x] **Status & Error Handling**
+   - [x] Standardize status displays for different application states.
+   - [x] Ensure high contrast for all feedback messages.
 
-### 1.3 Controller Layer (`PdfConversionController.java`)
-8. [ ] Update `@PostMapping("/convert")` to accept optional `@RequestParam("xmlFile") MultipartFile xmlFile`.
-9. [ ] Pass the `xmlFile` from controller to `PdfConversionService`.
-
-## 2. Frontend Enhancements (`src/main/frontend`)
-
-### 2.1 UI Components (`App.tsx`)
-10. [ ] Add state management for the selected XML file.
-11. [ ] Update the UI to include an upload field/dropzone for the ZUGFeRD XML file.
-12. [ ] Display the selected XML filename and size in the UI.
-
-### 2.2 API Integration
-13. [ ] Update `handleUpload` to append `xmlFile` to `FormData` if it is present.
-14. [ ] Enhance error handling to display specific backend validation messages if conversion fails.
-
-## 3. Testing & Validation
-
-### 3.1 Unit Testing (`PdfConversionServiceTest.java`)
-15. [ ] Create `testConversionWithXmlEmbedding` to verify:
-    - [ ] The output PDF contains the embedded XML file.
-    - [ ] The output PDF is still valid PDF/A-3.
-16. [ ] Add a test case for conversion without an XML file (optional embedding).
-
-### 3.2 Manual Validation
-17. [ ] Verify generated PDF/A-3 files with VeraPDF.
-18. [ ] Verify ZUGFeRD compliance using online/offline ZUGFeRD validators.
-
-## 4. Documentation
-19. [ ] Update `README.md` to document the new `xmlFile` parameter.
-20. [ ] Provide updated cURL/Postman examples in `README.md` for dual-file upload.
-21. [ ] (Optional) Update OpenAPI specification if applicable.
+## Phase 4: Build, Integration & Verification
+10. [x] **Backend Integration**
+    - [x] Verify Vite build output path matches `src/main/resources/static`.
+    - [x] Ensure Spring Boot correctly serves the frontend from the static resources folder.
+11. [x] **Quality Assurance**
+    - [x] Run `npm run build` and `npm run lint` in the frontend project.
+    - [x] Execute a full conversion cycle to verify UI-to-Backend communication.
+    - [x] Check accessibility (contrast, aria-labels).
+12. [x] **Documentation Update**
+    - [x] Update `prompts/requirements.md` if any new best practices are discovered during implementation.

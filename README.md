@@ -50,16 +50,18 @@ A robust Spring Boot service designed to convert standard PDF documents into the
 
 ## API Documentation
 
-### Convert PDF to PDF/A-3
+### Convert PDF to PDF/A-3 (ZUGFeRD)
 
 **Endpoint**: `POST /api/v1/convert`  
 **Content-Type**: `multipart/form-data`
 
 #### Request Parameters
 - `file`: The PDF file to be converted (Binary).
+- `xmlFile`: (Optional) The ZUGFeRD XML file to be embedded (Binary).
 
 #### Response
 - `200 OK`: Returns the converted PDF file as a download (`application/pdf`).
+- `400 Bad Request`: Invalid input (e.g. empty file).
 - `429 Too Many Requests`: Rate limit exceeded.
 - `500 Internal Server Error`: Conversion failed.
 
@@ -74,10 +76,19 @@ To test the service in Postman:
 3. Enter the URL: `http://localhost:8084/api/v1/convert`.
 4. Go to the **Body** tab.
 5. Select **form-data**.
-6. In the **Key** field, type `file` and change the type from "Text" to **File**.
-7. In the **Value** field, select the PDF file you want to convert.
+6. In the **Key** field, type `file` and change the type from "Text" to **File**. Select your PDF.
+7. (Optional) Add another key `xmlFile`, change the type to **File**, and select your ZUGFeRD XML.
 8. Click **Send**.
 9. Postman will show the response; you can use "Save Response -> Save to a file" to see the converted PDF.
+
+### cURL Example
+
+```bash
+curl -X POST http://localhost:8084/api/v1/convert \
+  -F "file=@/path/to/invoice.pdf" \
+  -F "xmlFile=@/path/to/zugferd.xml" \
+  --output converted_invoice.pdf
+```
 
 ---
 

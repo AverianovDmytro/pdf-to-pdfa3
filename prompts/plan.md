@@ -1,60 +1,58 @@
-# Implementation Plan: ZUGFeRD PDF/A-3 Conversion Service
+# Project Improvement Plan: UI Redesign & Developer Guide Implementation
 
-This document outlines the detailed steps required to implement the ZUGFeRD-compliant PDF/A-3 conversion service, as specified in `prompts/requirements.md`.
+This plan details the steps required to implement the improvements outlined in `prompts/requirements.md` for the PDF to PDF/A-3 (ZUGFeRD) project.
 
-## 1. Backend Enhancements
+## Phase 1: Styling Foundation & Global Configuration
+1. **Color Palette Refinement**
+   - Review current CSS variables in `src/main/frontend/src/index.css`.
+   - Extract hex colors from `/styles/style_finance.png` for Background, Primary, Secondary, and Text.
+   - Update `tailwind.config.js` to use descriptive names (e.g., `brand-primary`, `surface-muted`).
 
-### 1.1 Model & Persistence
-- **Task**: Update `Conversion` entity to track the XML file.
-- **Action**: Add `xml_filename` and `xml_size` fields to `com.vcapelcin.pdftopdfa3.model.Conversion`.
-- **Action**: Create a Flyway/Liquibase migration or let JPA update the schema (depending on environment).
+2. **Typography Setup**
+   - Import Google Fonts (Poppins, Inter, or Roboto) in `src/main/frontend/src/index.css`.
+   - Update `tailwind.config.js` to set the selected font as the default `sans` stack.
 
-### 1.2 Service Layer (`PdfConversionService.java`)
-- **Task**: Implement XML embedding and PDF/A-3 metadata.
-- **Action**: Modify `convertToPdfA3` to accept an optional `MultipartFile xmlFile`.
-- **Action**: Implement `embedZugferdXml(PDDocument document, byte[] xmlBytes, String filename)`:
-  - Create `PDEmbeddedFile` from XML bytes.
-  - Set subtype to `text/xml`.
-  - Create `PDComplexFileSpecification` and associate it with the document's `EF` (EmbeddedFiles) dictionary.
-  - Add the file specification to the `/AF` (Associated Files) array in the document catalog (required for PDF/A-3).
-  - Set the relationship to `Alternative` (specifically `Data` for ZUGFeRD).
-- **Action**: Update `makePdfA3` to include ZUGFeRD extension schema in XMP metadata (if not already present).
-- **Action**: Ensure color profile (sRGB) is correctly embedded as `PDOutputIntent`.
+3. **Global Effects & Spacing**
+   - Standardize `border-radius` to `2xl` or `3xl` in `tailwind.config.js` and components.
+   - Refine `shadow-layered` utility in `tailwind.config.js` for soft, depth-giving effects.
+   - Increase base font sizes and line heights across the application for a "friendly" feel.
 
-### 1.3 Controller Layer (`PdfConversionController.java`)
-- **Task**: Update API to accept two files.
-- **Action**: Update `@PostMapping("/convert")` to accept:
-  - `@RequestParam("file") MultipartFile file`
-  - `@RequestParam(value = "xmlFile", required = false) MultipartFile xmlFile`
-- **Action**: Update logic to pass `xmlFile` to the service.
+## Phase 2: Component Overhaul & Visual Identity
+4. **Iconography Update**
+   - Audit all components for icon usage.
+   - Replace generic icons (e.g., from `lucide-react`) with **Iconify Solar Linear Icons**.
+   - Standardize brand logos using **Iconify Simple Icons** at `96x36px`.
 
-## 2. Frontend Enhancements (`src/main/frontend`)
+5. **Imagery Integration**
+   - Replace static or missing images with high-quality Unsplash placeholders.
+   - Match the "Secure Archiving" and "FinTech" mood in Hero and feature sections.
 
-### 2.1 UI Components (`App.tsx`)
-- **Task**: Add XML file upload capability.
-- **Action**: Add a second file input state for the XML file.
-- **Action**: Update the dropzone/input to handle both PDF and XML files (or add a separate input for XML).
-- **Action**: Display the selected XML filename and size.
+6. **Layout & Grid Refinement**
+   - Ensure generous whitespace (padding/margin) between main UI blocks.
+   - Verify responsive behavior of the multi-column layout.
 
-### 2.2 API Integration
-- **Task**: Update `handleUpload` to send both files.
-- **Action**: Append `xmlFile` to `FormData` if selected.
-- **Action**: Improve error messaging to handle backend validation errors.
+## Phase 3: Enhanced Interactivity & Feedback
+7. **FileUpload Enhancement**
+   - Improve the drag-and-drop zone's visual feedback (hover, active states).
+   - Add clearer success/error animations or transitions.
 
-## 3. Testing & Validation
+8. **Preview Section Optimization**
+   - Ensure PDF and XML previews are prominent and easily switchable.
+   - Add loading skeletons or placeholders while previews are rendering.
 
-### 3.1 Unit Testing (`PdfConversionServiceTest.java`)
-- **Task**: Verify XML embedding.
-- **Action**: Add `testConversionWithXmlEmbedding` test case.
-- **Action**: Assert that the output PDF contains the embedded XML file.
-- **Action**: Assert that the PDF remains PDF/A-3 compliant.
+9. **Status & Error Handling**
+   - Standardize status displays for different application states.
+   - Ensure high contrast for all feedback messages.
 
-### 3.2 Manual Validation
-- **Task**: Verify with external tools.
-- **Action**: Test the output with [VeraPDF](https://verapdf.org/) for PDF/A-3 compliance.
-- **Action**: Test the output with ZUGFeRD validators to ensure the XML is correctly associated.
+## Phase 4: Build, Integration & Verification
+10. **Backend Integration**
+    - Verify Vite build output path matches `src/main/resources/static`.
+    - Ensure Spring Boot correctly serves the frontend from the static resources folder.
 
-## 4. Documentation
-- **Task**: Update `README.md` and OpenAPI spec.
-- **Action**: Document the new `xmlFile` parameter in the API section.
-- **Action**: Provide a Postman/cURL example for the dual-file upload.
+11. **Quality Assurance**
+    - Run `npm run build` and `npm run lint` in the frontend project.
+    - Execute a full conversion cycle to verify UI-to-Backend communication.
+    - Check accessibility (contrast, aria-labels).
+
+12. **Documentation Update**
+    - Update `prompts/requirements.md` if any new best practices are discovered during implementation.
