@@ -31,7 +31,7 @@ A robust Spring Boot service designed to convert standard PDF documents into the
 1. Clone the repository.
 2. Run the following command in the project root:
    ```bash
-   docker-compose up --build
+   docker compose up --build
    ```
 3. The application will be available at `http://localhost:8084`.
 
