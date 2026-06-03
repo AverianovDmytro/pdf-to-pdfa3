@@ -63,15 +63,19 @@ public class PdfConversionService {
     }
 
     @Async
-    public CompletableFuture<byte[]> convertToPdfA3Async(MultipartFile file, MultipartFile xmlFile) throws Exception {
-        return CompletableFuture.completedFuture(convertToPdfA3(file, xmlFile));
+    public CompletableFuture<byte[]> convertToPdfA3Async(MultipartFile file, MultipartFile xmlFile, String ipAddress) throws Exception {
+        return CompletableFuture.completedFuture(convertToPdfA3(file, xmlFile, "BASIC", ipAddress));
     }
 
     public byte[] convertToPdfA3(MultipartFile file, MultipartFile xmlFile) throws Exception {
-        return convertToPdfA3(file, xmlFile, "BASIC");
+        return convertToPdfA3(file, xmlFile, "BASIC", null);
     }
 
-    public byte[] convertToPdfA3(MultipartFile file, MultipartFile xmlFile, String zugferdConformanceLevel) throws Exception {
+    public byte[] convertToPdfA3(MultipartFile file, MultipartFile xmlFile, String ipAddress) throws Exception {
+        return convertToPdfA3(file, xmlFile, "BASIC", ipAddress);
+    }
+
+    public byte[] convertToPdfA3(MultipartFile file, MultipartFile xmlFile, String zugferdConformanceLevel, String ipAddress) throws Exception {
         long startTime = System.currentTimeMillis();
         String originalFilename = file.getOriginalFilename();
         log.debug("Starting PDF to PDF/A-3 conversion for file: {} (Profile: {})", originalFilename, zugferdConformanceLevel);
@@ -79,6 +83,7 @@ public class PdfConversionService {
         Conversion conversion = Conversion.builder()
                 .filename(originalFilename)
                 .status("PROCESSING")
+                .ipAddress(ipAddress)
                 .build();
         
         if (xmlFile != null && !xmlFile.isEmpty()) {

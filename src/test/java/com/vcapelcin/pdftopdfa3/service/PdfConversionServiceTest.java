@@ -35,7 +35,7 @@ class PdfConversionServiceTest {
         MockMultipartFile file = new MockMultipartFile("file", "persistence_test.pdf", "application/pdf", pdfContent);
 
         long beforeCount = conversionRepository.count();
-        pdfConversionService.convertToPdfA3(file, null);
+        pdfConversionService.convertToPdfA3(file, null, "127.0.0.1");
         long afterCount = conversionRepository.count();
 
         assertEquals(beforeCount + 1, afterCount);
@@ -44,6 +44,7 @@ class PdfConversionServiceTest {
         assertEquals("persistence_test.pdf", lastConversion.getFilename());
         assertEquals("persistence_test_a3.pdf", lastConversion.getTargetFilename());
         assertEquals("COMPLETED", lastConversion.getStatus());
+        assertEquals("127.0.0.1", lastConversion.getIpAddress());
         assertNotNull(lastConversion.getOriginalSize());
         assertNotNull(lastConversion.getConvertedSize());
         assertNotNull(lastConversion.getProcessingTimeMs());

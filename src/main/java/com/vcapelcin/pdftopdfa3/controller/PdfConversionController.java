@@ -3,6 +3,7 @@ package com.vcapelcin.pdftopdfa3.controller;
 import com.vcapelcin.pdftopdfa3.service.PdfConversionService;
 import com.vcapelcin.pdftopdfa3.service.XmlValidationService;
 import io.github.bucket4j.Bucket;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -39,11 +40,16 @@ public class PdfConversionController {
     ResponseEntity<byte[]> convertPdf(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "xmlFile", required = false) MultipartFile xmlFile,
-            @RequestParam(value = "profile", defaultValue = "BASIC") String profile) throws Exception {
-        log.info("Received request to convert file: {} (with xml: {}, profile: {})", 
+            @RequestParam(value = "profile", defaultValue = "BASIC") String profile,
+            HttpServletRequest request) throws Exception {
+        
+        String ipAddress = request.getRemoteAddr();
+        
+        log.info("Received request to convert file: {} (with xml: {}, profile: {}) from IP: {}", 
                 file.getOriginalFilename(), 
                 xmlFile != null ? xmlFile.getOriginalFilename() : "none",
-                profile);
+                profile,
+                ipAddress);
         if (!bucket.tryConsume(1)) {
             log.warn("Rate limit exceeded for file: {}", file.getOriginalFilename());
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
@@ -67,7 +73,7 @@ public class PdfConversionController {
         }
 
         try {
-            byte[] convertedPdf = pdfConversionService.convertToPdfA3(file, xmlFile, profile);
+            byte[] convertedPdf = pdfConversionService.convertToPdfA3(file, xmlFile, profile, ipAddress);
 
             String originalFilename = file.getOriginalFilename();
             String newFilename = (originalFilename != null ? originalFilename.replace(".pdf", "") : "converted") + "_a3.pdf";

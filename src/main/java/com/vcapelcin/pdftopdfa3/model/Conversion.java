@@ -38,4 +38,7 @@ public class Conversion extends BaseEntityUUID {
 
     @Column(name = "xml_size")
     private Long xmlSize;
+
+    @Column(name = "ip_address", length = 45)
+    private String ipAddress;
 }
