@@ -32,4 +32,10 @@ public class Conversion extends BaseEntityUUID {
 
     @Column(name = "target_filename")
     private String targetFilename;
+
+    @Column(name = "xml_filename")
+    private String xmlFilename;
+
+    @Column(name = "xml_size")
+    private Long xmlSize;
 }

@@ -43,7 +43,7 @@ class BulkConversionTest {
                     content
             );
 
-            byte[] convertedContent = pdfConversionService.convertToPdfA3(multipartFile);
+            byte[] convertedContent = pdfConversionService.convertToPdfA3(multipartFile, null);
             
             assertNotNull(convertedContent, "Conversion result is null for file: " + file.getName());
             assertTrue(convertedContent.length > 0, "Conversion result is empty for file: " + file.getName());

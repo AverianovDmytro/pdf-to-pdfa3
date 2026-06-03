@@ -21,6 +21,13 @@ import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.preflight.ValidationResult;
 import org.apache.pdfbox.preflight.parser.PreflightParser;
+import org.apache.pdfbox.cos.COSDictionary;
+import org.apache.pdfbox.pdmodel.PDDocumentCatalog;
+import org.apache.pdfbox.pdmodel.common.filespecification.PDComplexFileSpecification;
+import org.apache.pdfbox.pdmodel.common.filespecification.PDEmbeddedFile;
+import org.apache.xmpbox.schema.XMPSchema;
+import org.apache.xmpbox.type.AbstractStructuredType;
+import org.apache.xmpbox.type.StructuredType;
 import org.springframework.scheduling.annotation.Async;
 import java.util.concurrent.CompletableFuture;
 import org.springframework.stereotype.Service;
@@ -39,11 +46,11 @@ public class PdfConversionService {
     private final ConversionRepository conversionRepository;
 
     @Async
-    public CompletableFuture<byte[]> convertToPdfA3Async(MultipartFile file) throws IOException {
-        return CompletableFuture.completedFuture(convertToPdfA3(file));
+    public CompletableFuture<byte[]> convertToPdfA3Async(MultipartFile file, MultipartFile xmlFile) throws IOException {
+        return CompletableFuture.completedFuture(convertToPdfA3(file, xmlFile));
     }
 
-    public byte[] convertToPdfA3(MultipartFile file) throws IOException {
+    public byte[] convertToPdfA3(MultipartFile file, MultipartFile xmlFile) throws IOException {
         long startTime = System.currentTimeMillis();
         String originalFilename = file.getOriginalFilename();
         log.debug("Starting PDF to PDF/A-3 conversion for file: {}", originalFilename);
@@ -52,6 +59,12 @@ public class PdfConversionService {
                 .filename(originalFilename)
                 .status("PROCESSING")
                 .build();
+        
+        if (xmlFile != null && !xmlFile.isEmpty()) {
+            conversion.setXmlFilename(xmlFile.getOriginalFilename());
+            conversion.setXmlSize(xmlFile.getSize());
+        }
+
         conversion = conversionRepository.save(conversion);
 
         if (!isPdfFile(file)) {
@@ -67,9 +80,17 @@ public class PdfConversionService {
             String targetFilename = (originalFilename != null ? originalFilename.replace(".pdf", "") : "converted") + "_a3.pdf";
             conversion.setTargetFilename(targetFilename);
 
-            try (PDDocument document = Loader.loadPDF(fileBytes)) {
+        try (PDDocument document = Loader.loadPDF(fileBytes)) {
                 embedFonts(document);
-                makePdfA3(document);
+                
+                String embeddedXmlFilename = null;
+                if (xmlFile != null && !xmlFile.isEmpty()) {
+                    // Use standard ZUGFeRD 2.x / Factur-X filename
+                    embeddedXmlFilename = "factur-x.xml";
+                    embedZugferdXml(document, xmlFile.getBytes(), embeddedXmlFilename);
+                }
+
+                makePdfA3(document, embeddedXmlFilename);
 
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 document.save(baos, org.apache.pdfbox.pdfwriter.compress.CompressParameters.NO_COMPRESSION);
@@ -142,11 +163,69 @@ public class PdfConversionService {
         }
     }
 
-    private void makePdfA3(PDDocument document) throws IOException {
+    private void embedZugferdXml(PDDocument document, byte[] xmlBytes, String filename) throws IOException {
+        log.debug("Embedding ZUGFeRD XML: {}", filename);
+        
+        PDEmbeddedFile embeddedFile = new PDEmbeddedFile(document, new java.io.ByteArrayInputStream(xmlBytes));
+        embeddedFile.setSubtype("text/xml");
+        embeddedFile.setSize(xmlBytes.length);
+        embeddedFile.setCreationDate(Calendar.getInstance());
+        embeddedFile.setModDate(Calendar.getInstance());
+
+        PDComplexFileSpecification fileSpec = new PDComplexFileSpecification();
+        fileSpec.setFile(filename);
+        fileSpec.setEmbeddedFile(embeddedFile);
+        fileSpec.setEmbeddedFileUnicode(embeddedFile);
+        
+        COSDictionary dict = fileSpec.getCOSObject();
+        dict.setName(COSName.getPDFName("AFRelationship"), "Data");
+
+        PDDocumentCatalog catalog = document.getDocumentCatalog();
+        COSName afName = COSName.getPDFName("AF");
+        org.apache.pdfbox.cos.COSArray afArray = (org.apache.pdfbox.cos.COSArray) catalog.getCOSObject().getDictionaryObject(afName);
+        if (afArray == null) {
+            afArray = new org.apache.pdfbox.cos.COSArray();
+            catalog.getCOSObject().setItem(afName, afArray);
+        }
+        afArray.add(fileSpec);
+
+        org.apache.pdfbox.pdmodel.PDDocumentNameDictionary names = catalog.getNames();
+        if (names == null) {
+            names = new org.apache.pdfbox.pdmodel.PDDocumentNameDictionary(catalog);
+            catalog.setNames(names);
+        }
+        org.apache.pdfbox.pdmodel.PDEmbeddedFilesNameTreeNode efTree = names.getEmbeddedFiles();
+        if (efTree == null) {
+            efTree = new org.apache.pdfbox.pdmodel.PDEmbeddedFilesNameTreeNode();
+            names.setEmbeddedFiles(efTree);
+        }
+        
+        java.util.Map<String, PDComplexFileSpecification> namesMap = new java.util.HashMap<>();
+        namesMap.put(filename, fileSpec);
+        efTree.setNames(namesMap);
+    }
+
+    private void makePdfA3(PDDocument document, String xmlFilename) throws IOException {
         PDDocumentInformation info = document.getDocumentInformation();
         
         XMPMetadata xmp = XMPMetadata.createXMPMetadata();
         
+        if (xmlFilename != null) {
+            try {
+                // Add ZUGFeRD extension schema
+                // Using Factur-X / ZUGFeRD 2.x namespace
+                String namespace = "urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#";
+                XMPSchema zugferdSchema = new XMPSchema(xmp, namespace, "fx", "Factur-X PDFA Extension Schema");
+                zugferdSchema.setTextPropertyValue("ConformanceLevel", "BASIC");
+                zugferdSchema.setTextPropertyValue("DocumentFileName", xmlFilename);
+                zugferdSchema.setTextPropertyValue("DocumentType", "INVOICE");
+                zugferdSchema.setTextPropertyValue("Version", "1.0");
+                xmp.addSchema(zugferdSchema);
+            } catch (Exception e) {
+                log.warn("Failed to add ZUGFeRD extension schema to XMP metadata", e);
+            }
+        }
+
         PDFAIdentificationSchema id = xmp.createAndAddPDFAIdentificationSchema();
         try {
             id.setPart(3);

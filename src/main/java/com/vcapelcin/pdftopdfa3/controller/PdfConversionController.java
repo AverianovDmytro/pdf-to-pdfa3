@@ -28,8 +28,12 @@ public class PdfConversionController {
     }
 
     @PostMapping(value = "/convert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    ResponseEntity<byte[]> convertPdf(@RequestParam("file") MultipartFile file) throws IOException {
-        log.info("Received request to convert file: {}", file.getOriginalFilename());
+    ResponseEntity<byte[]> convertPdf(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "xmlFile", required = false) MultipartFile xmlFile) throws IOException {
+        log.info("Received request to convert file: {} (with xml: {})", 
+                file.getOriginalFilename(), 
+                xmlFile != null ? xmlFile.getOriginalFilename() : "none");
         if (!bucket.tryConsume(1)) {
             log.warn("Rate limit exceeded for file: {}", file.getOriginalFilename());
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
@@ -40,7 +44,7 @@ public class PdfConversionController {
         }
 
         try {
-            byte[] convertedPdf = pdfConversionService.convertToPdfA3(file);
+            byte[] convertedPdf = pdfConversionService.convertToPdfA3(file, xmlFile);
 
             String originalFilename = file.getOriginalFilename();
             String newFilename = (originalFilename != null ? originalFilename.replace(".pdf", "") : "converted") + "_a3.pdf";
