@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { Icon } from '@iconify/react';
 
 interface PDFPreviewProps {
   pdfPreview: string;
@@ -7,17 +7,17 @@ interface PDFPreviewProps {
 
 export function PDFPreview({ pdfPreview, onRemove }: PDFPreviewProps) {
   return (
-    <div className="mt-4 border rounded-lg overflow-hidden bg-gray-100">
-      <div className="bg-gray-200 px-3 py-1 text-xs font-medium text-gray-600 border-b flex justify-between items-center">
+    <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-muted/30">
+      <div className="bg-muted px-4 py-2 text-xs font-bold text-muted-foreground border-b border-border flex justify-between items-center">
         <span>PDF Preview</span>
         <button
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
           }}
-          className="text-gray-500 hover:text-red-500"
+          className="text-muted-foreground hover:text-destructive transition-colors"
         >
-          <X className="w-4 h-4" />
+          <Icon icon="solar:close-circle-linear" className="w-5 h-5" />
         </button>
       </div>
       <iframe

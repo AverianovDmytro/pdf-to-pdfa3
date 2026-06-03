@@ -1,50 +1,21 @@
-I see
-Upload Documents
+Inspect a picture in /styles/style_finance.png.
 
-Provide the source PDF and the corresponding ZUGFeRD XML file.
+Change a Front-End Style to Style from a picture.
+Act as a Senior UI/UX Designer and Front-End Developer.
 
-file-example_PDF_1MB.pdf
-file-example_PDF_1MB.pdf0.99 MB
-ZugFerd_Gutschrift.xml
-ZugFerd_Gutschrift.xml0.01 MB
-Step 3: Convert PDF to XML
-Conversion Successful
-PDF successfully converted to PDF/A-3!
+# Design & Assets
 
-Document Preview
-PDF Preview
+Analyse the reference image strictly for:
+- Color palette (extract Hex Colors for Background, Primary, Secondary and text Colors)
+- Typography (guess font families, sizes, weights or use a close Google Font alternative like Intro, Roboto or Poppins);
+- Spacing, border-radius and shadows;
+- Composition & Motifs (layout, spacing, grid/columns, a
 
-Create structure:
-1. Upload PDF
-2. Preview PDF
-3. Upload XML
-4. Preview XML
-5. Convert to ZUGFeRD PDF/A-3
-6. Table with errors.
+# Icons
+- use Iconify Solar Linear Icons for UI elements;
+- use Iconify Simple Icons for brand logos (size 96x36px);
 
-In Preview XML in want to see (1. Invoice:
+# Images
+Use high-quality placeholder images from Unsplash (source.unsplash.com) that match the mood of the section.
 
-Invoice number.
-Invoice issue date.
-Invoice type code.
-Invoice currency code.
-2. Party Information (Supplier/Buyer):
-
-Name, address, and VAT registration number.
-Purchase order reference/sales order reference.
-Delivery information.
-3. Line Items:
-
-Item description.
-Quantity.
-Unit price.
-VAT rate.
-4. Totals & VAT:
-
-Document totals.
-Discounts, if any,
-VAT category.
-VAT breakdown.
-5. Payment Details:
-
-Payment instructions and bank details.)
+Create a more freundly Interface. Larger fonts, grenzte border-radius and shadows.

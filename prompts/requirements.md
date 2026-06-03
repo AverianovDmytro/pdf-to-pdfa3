@@ -1,67 +1,72 @@
-# PDF to PDF/A-3 Conversion Tool - Developer Guide
+# Developer Guide: PDF to PDF/A-3 (ZUGFeRD) UI Redesign
 
-This document outlines the requirements and implementation steps for the PDF to PDF/A-3 (ZUGFeRD) conversion service. The goal is to provide a robust, user-friendly interface for embedding structured XML invoice data into standard PDF documents.
+This guide outlines the steps to transform the current frontend into a professional, "Finance-Style" interface. The redesign focuses on clarity, accessibility, and modern aesthetics suitable for secure document archiving.
 
-## Project Overview
-- **Backend:** Spring Boot (Java 21)
-- **Frontend:** React 19, TypeScript, Tailwind CSS
-- **Key Functionality:** Convert standard PDF + ZUGFeRD XML into a compliant PDF/A-3 document.
+## 1. Analysis & Preparation
 
----
+### Reference Image Analysis
+Analyze the reference image at `/styles/style_finance.png` (if available) for:
+- **Color Palette**: Extract Hex colors for:
+  - Background (Main & Sections)
+  - Primary (Call-to-action, Brand)
+  - Secondary (Success, Accents)
+  - Text (Headers, Body, Subtext)
+- **Typography**: Match the brand's feel using Google Fonts (e.g., *Poppins*, *Roboto*, or *Inter*).
+- **Composition**: Note the layout, grid spacing, and motifs used.
 
-## Actionable Implementation Steps
-
-### 1. Document Upload & Management
-- [x] **Source PDF Upload:** Implement a drag-and-drop zone for standard PDF documents.
-- [x] **ZUGFeRD XML Upload:** Implement a dedicated upload zone for the corresponding ZUGFeRD XML file.
-- [ ] **File Validation:** Ensure only `.pdf` and `.xml` files are accepted respectively.
-- [ ] **File Size & Info:** Display file names and sizes after selection (e.g., `file-example.pdf 0.99 MB`).
-
-### 2. Live Document Preview
-- [x] **PDF Preview:** Render the uploaded PDF within the interface to allow users to verify the document before conversion.
-- [ ] **XML Data Preview:** Implement a structured preview section for the uploaded ZUGFeRD XML. This should display:
-    - **Invoice Details:** Number, Issue Date, Type Code, Currency.
-    - **Party Information:** Supplier and Buyer names, addresses, and VAT IDs.
-    - **References:** Purchase order and sales order references.
-    - **Line Items:** Description, quantity, unit price, and VAT rate.
-    - **Totals & VAT:** Document totals, discounts, VAT categories, and VAT breakdown.
-    - **Payment Details:** Bank details and payment instructions.
-
-### 3. Conversion Process
-- [x] **Trigger Conversion:** A prominent button to initiate the "Step 3: Convert PDF to PDF/A-3" process.
-- [x] **Progress Tracking:** Show a progress bar and status messages (e.g., "Uploading Files...", "Processing PDF/A-3...").
-- [x] **Success Handling:** Upon successful conversion, automatically trigger the download of the new PDF/A-3 file (suffixed with `_a3.pdf`).
-
-### 4. Error Handling & Validation
-- [ ] **Validation Feedback:** If the XML is invalid or doesn't match the PDF, provide clear error messages.
-- [x] **Error Table:** Implement a table or structured list to display specific validation errors (e.g., XSD validation failures or business logic mismatches).
-- [ ] **Status Reset:** Allow users to clear selections and reset the state to "Idle" for a new conversion.
+### Roles & Mindset
+- **Senior UI/UX Designer**: Prioritize user flow, visual hierarchy, and emotional response (trust/security).
+- **Front-End Developer**: Implement clean, responsive React components using Tailwind CSS.
 
 ---
 
-## Technical Guidelines
+## 2. Implementation Steps
 
-### Frontend Best Practices
-- **Component Architecture:** Keep UI components modular (e.g., `FileUpload`, `PDFPreview`, `StatusDisplay`).
-- **State Management:** Use React hooks (`useState`, `useCallback`) for managing file states and UI transitions.
-- **Styling:** Use Tailwind CSS for consistent, responsive design. Follow the existing color palette (Slate, Primary, Accent).
-- **Icons:** Use `lucide-react` or `@iconify/react` for visual cues.
+### Phase 1: Styling Foundation
+- **Colors**: Update `tailwind.config.js` with the extracted hex colors. Use descriptive names like `brand-primary`, `surface-muted`, etc.
+- **Typography**: Import the selected font in `index.css` and set it as the default `sans` font in Tailwind.
+- **Global Effects**:
+  - Implement larger, "friendly" `border-radius` (e.g., `2xl` or `3xl`).
+  - Apply soft, layered shadows for depth (e.g., `shadow-layered` class).
+  - Increase base font sizes for better readability.
 
-### Building and Testing
-- **Development:** Run `npm run dev` in `src/main/frontend`.
-- **Production Build:** Use `npm run build` to generate optimized assets.
-- **Linting:** Run `npm run lint` to ensure code quality.
-- **Backend Integration:** The frontend communicates with the backend via `POST /api/v1/convert`. Ensure the `responseType` is set to `blob` for PDF downloads.
+### Phase 2: Component Overhaul
+- **Icons**:
+  - Replace generic icons with **Iconify Solar Linear Icons** for general UI elements.
+  - Use **Iconify Simple Icons** for brand logos (standardize at `96x36px`).
+- **Imagery**:
+  - Integrate high-quality placeholder images from Unsplash (`source.unsplash.com`) that match the "Secure Archiving" or "Financial Technology" mood.
+- **Layout**:
+  - Use a clean, structured grid.
+  - Ensure generous whitespace (padding/margin) between sections.
+
+### Phase 3: Interactive Elements
+- **FileUpload**: Enhance the drop zone with better hover states and clearer success/error feedback.
+- **Preview Sections**: Ensure the PDF and XML previews are prominent and easy to toggle.
+- **Feedback**: Use consistent status displays for loading, success, and error states.
 
 ---
 
-## UI Structure Outline
-1. **Hero Section:** Title and brief service description.
-2. **Upload Section (Left Column):**
-    - Step 1: Source PDF Upload
-    - Step 2: ZUGFeRD XML Upload
-    - Action: Convert Button
-    - Status: Success/Error messages and Error Table.
-3. **Preview Section (Right Column):**
-    - Toggle/Tab between PDF Preview and XML Data Preview.
-4. **Footer:** Company branding and copyright info.
+## 3. Best Practices
+
+- **Tailwind Utility First**: Stick to Tailwind classes for layout and styling to maintain consistency.
+- **Accessibility**: Maintain high contrast ratios, especially for financial data and status messages.
+- **Responsiveness**: Verify that the "friendly" interface translates well to tablet and mobile views.
+
+---
+
+## 4. Building & Verification
+
+### Build Process
+```bash
+cd src/main/frontend
+npm install
+npm run build
+```
+
+### Verification Checklist
+- [ ] Colors match the reference style.
+- [ ] Solar Linear icons are used for UI elements.
+- [ ] Border-radius and shadows are consistent across all cards/containers.
+- [ ] The interface remains "friendly" and readable with larger fonts.
+- [ ] Frontend builds without errors and integrates with the Spring Boot backend (`src/main/resources/static`).

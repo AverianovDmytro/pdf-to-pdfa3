@@ -40,12 +40,21 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        brand: {
+          blue: "hsl(221 83% 53%)",
+          navy: "hsl(222 47% 11%)",
+          green: "hsl(142 71% 45%)",
+        },
+        surface: {
+          base: "hsl(210 20% 98%)",
+          muted: "hsl(214 32% 91%)",
+        }
       },
       fontFamily: {
-        sans: ["Inter", "Roboto", "Poppins", "sans-serif"],
+        sans: ["Poppins", "Inter", "Roboto", "sans-serif"],
       },
       boxShadow: {
-        'layered': '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06), 0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+        'layered': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 10px 15px -3px rgba(0, 0, 0, 0.08)',
       },
       borderRadius: {
         lg: "var(--radius)",

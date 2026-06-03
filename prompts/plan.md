@@ -1,47 +1,58 @@
-# Project Improvement Plan: PDF to PDF/A-3 Conversion Tool
+# Project Improvement Plan: UI Redesign & Developer Guide Implementation
 
-This plan outlines the steps required to complete the features identified in `prompts/requirements.md` and further enhance the application's robustness and user experience.
+This plan details the steps required to implement the improvements outlined in `prompts/requirements.md` for the PDF to PDF/A-3 (ZUGFeRD) project.
 
-## Phase 1: Frontend Enhancements
+## Phase 1: Styling Foundation & Global Configuration
+1. **Color Palette Refinement**
+   - Review current CSS variables in `src/main/frontend/src/index.css`.
+   - Extract hex colors from `/styles/style_finance.png` for Background, Primary, Secondary, and Text.
+   - Update `tailwind.config.js` to use descriptive names (e.g., `brand-primary`, `surface-muted`).
 
-### 1.1 Document Upload Improvements
-- **File Validation:** Implement client-side validation in `FileUpload.tsx` and `App.tsx` to strictly enforce `.pdf` and `.xml` extensions.
-- **File Metadata Display:** Update the upload zones to display file size and other relevant metadata once a file is selected.
-- **Status Reset:** Add a "Reset" or "Clear" button to allow users to start over easily.
+2. **Typography Setup**
+   - Import Google Fonts (Poppins, Inter, or Roboto) in `src/main/frontend/src/index.css`.
+   - Update `tailwind.config.js` to set the selected font as the default `sans` stack.
 
-### 1.2 XML Data Preview
-- **Data Extraction:** Implement logic to parse the uploaded ZUGFeRD XML file on the client side (or via a dedicated backend preview endpoint).
-- **Structured Display:** Create a new component `XMLPreview` to display:
-    - Invoice summary (Number, Date, Currency).
-    - Supplier/Buyer details.
-    - Line item table.
-    - Totals and VAT breakdown.
-- **Tabbed Interface:** Implement a toggle or tab system in the right column to switch between "PDF Preview" and "XML Data Preview".
+3. **Global Effects & Spacing**
+   - Standardize `border-radius` to `2xl` or `3xl` in `tailwind.config.js` and components.
+   - Refine `shadow-layered` utility in `tailwind.config.js` for soft, depth-giving effects.
+   - Increase base font sizes and line heights across the application for a "friendly" feel.
 
-## Phase 2: Backend & Security
+## Phase 2: Component Overhaul & Visual Identity
+4. **Iconography Update**
+   - Audit all components for icon usage.
+   - Replace generic icons (e.g., from `lucide-react`) with **Iconify Solar Linear Icons**.
+   - Standardize brand logos using **Iconify Simple Icons** at `96x36px`.
 
-### 2.1 Enhanced Validation
-- **XSD Validation:** Ensure the backend strictly validates the ZUGFeRD XML against the official schemas.
-- **Business Logic Checks:** Implement checks to ensure the data in the XML matches the context of the PDF (where possible).
-- **Security Audit:** Review file upload handling for potential vulnerabilities (e.g., zip slips, large file DoS).
+5. **Imagery Integration**
+   - Replace static or missing images with high-quality Unsplash placeholders.
+   - Match the "Secure Archiving" and "FinTech" mood in Hero and feature sections.
 
-### 2.2 API Improvements
-- **Preview Endpoint:** Consider adding a lightweight endpoint to return JSON representation of the ZUGFeRD XML for the frontend preview.
-- **Error Reporting:** Refine the `ErrorResponse` structure to provide more granular feedback for XSD validation errors.
+6. **Layout & Grid Refinement**
+   - Ensure generous whitespace (padding/margin) between main UI blocks.
+   - Verify responsive behavior of the multi-column layout.
 
-## Phase 3: UI/UX & Quality Assurance
+## Phase 3: Enhanced Interactivity & Feedback
+7. **FileUpload Enhancement**
+   - Improve the drag-and-drop zone's visual feedback (hover, active states).
+   - Add clearer success/error animations or transitions.
 
-### 3.1 Design Polish
-- **Responsive Design:** Verify and fix any layout issues on smaller screens.
-- **Accessibility:** Ensure all interactive elements (buttons, dropzones) are keyboard accessible and have proper ARIA labels.
+8. **Preview Section Optimization**
+   - Ensure PDF and XML previews are prominent and easily switchable.
+   - Add loading skeletons or placeholders while previews are rendering.
 
-### 3.2 Testing & Linting
-- **Fix Build Errors:** Resolve any existing TypeScript or Tailwind CSS build issues.
-- **Unit Testing:** Add Vitest/React Testing Library tests for the new `XMLPreview` and validation logic.
-- **Linting:** Ensure all code passes `npm run lint` without warnings.
+9. **Status & Error Handling**
+   - Standardize status displays for different application states.
+   - Ensure high contrast for all feedback messages.
 
-## Phase 4: Integration & Deployment
+## Phase 4: Build, Integration & Verification
+10. **Backend Integration**
+    - Verify Vite build output path matches `src/main/resources/static`.
+    - Ensure Spring Boot correctly serves the frontend from the static resources folder.
 
-### 4.1 Deployment Readiness
-- **Production Build:** Verify the `npm run build` output and its integration with Spring Boot's static resources.
-- **Docker Verification:** Ensure the `docker-compose.yaml` correctly builds and serves the latest version of both frontend and backend.
+11. **Quality Assurance**
+    - Run `npm run build` and `npm run lint` in the frontend project.
+    - Execute a full conversion cycle to verify UI-to-Backend communication.
+    - Check accessibility (contrast, aria-labels).
+
+12. **Documentation Update**
+    - Update `prompts/requirements.md` if any new best practices are discovered during implementation.
