@@ -99,12 +99,14 @@ In Microsoft Dynamics NAV (Navision), you can use the `Microsoft XML, v6.0` auto
 ### C/AL Code Snippet
 
 ```cal
-PROCEDURE ConvertPdfToPdfA3(InFile : Text; OutFile : Text);
+PROCEDURE ConvertPdfToPdfA3(InFile : Text; XmlFile : Text; OutFile : Text);
 VAR
   HttpClient : DotNet "'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'.System.Net.Http.HttpClient";
   MultipartContent : DotNet "'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'.System.Net.Http.MultipartFormDataContent";
   FileStream : DotNet "'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089'.System.IO.FileStream";
+  XmlFileStream : DotNet "'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089'.System.IO.FileStream";
   StreamContent : DotNet "'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'.System.Net.Http.StreamContent";
+  XmlStreamContent : DotNet "'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'.System.Net.Http.StreamContent";
   HttpResponse : DotNet "'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'.System.Net.Http.HttpResponseMessage";
   ResultStream : DotNet "'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089'.System.IO.FileStream";
   FileMode : DotNet "'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089'.System.IO.FileMode";
@@ -122,6 +124,13 @@ BEGIN
   // Param name must be "file"
   MultipartContent.Add(StreamContent, 'file', 'source.pdf');
 
+  // Add the XML file (optional)
+  IF XmlFile <> '' THEN BEGIN
+    XmlFileStream := XmlFileStream.FileStream(XmlFile, FileMode.Open);
+    XmlStreamContent := XmlStreamContent.StreamContent(XmlFileStream);
+    MultipartContent.Add(XmlStreamContent, 'xmlFile', 'factur-x.xml');
+  END;
+
   HttpResponse := HttpClient.PostAsync(ServiceUrl, MultipartContent).Result;
 
   IF HttpResponse.IsSuccessStatusCode THEN BEGIN
@@ -136,6 +145,8 @@ BEGIN
   END;
 
   FileStream.Close();
+  IF XmlFile <> '' THEN
+    XmlFileStream.Close();
   HttpClient.Dispose();
 END;
 ```

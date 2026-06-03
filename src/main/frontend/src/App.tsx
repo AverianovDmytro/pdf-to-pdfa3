@@ -112,8 +112,22 @@ function App() {
       link.click();
       link.remove();
 
-      setStatus('success');
-      setMessage('PDF successfully converted to PDF/A-3!');
+      const validationErrorsHeader = response.headers['x-xml-validation-errors'];
+      if (validationErrorsHeader) {
+        try {
+          const decodedErrors = JSON.parse(atob(validationErrorsHeader));
+          setXmlErrors(decodedErrors);
+          setStatus('error'); // Show red status but file was downloaded
+          setMessage('PDF converted, but ZUGFeRD XML validation failed.');
+        } catch (e) {
+          console.error('Failed to parse validation errors header', e);
+          setStatus('success');
+          setMessage('PDF successfully converted to PDF/A-3!');
+        }
+      } else {
+        setStatus('success');
+        setMessage('PDF successfully converted to PDF/A-3!');
+      }
     } catch (err: any) {
       console.error(err);
       setStatus('error');

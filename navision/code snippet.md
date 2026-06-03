@@ -14,16 +14,18 @@ OBJECT Codeunit 50000 PDF Converter
   PROPERTIES
   {
     OnRun=BEGIN
-            ConvertPdfToPdfA3('C:\Temp\Invoice.pdf', 'C:\Temp\Invoice_A3.pdf');
+            ConvertPdfToPdfA3('C:\Temp\Invoice.pdf', 'C:\Temp\factur-x.xml', 'C:\Temp\Invoice_A3.pdf');
           END;
   }
 
-  PROCEDURE ConvertPdfToPdfA3(InFile : Text; OutFile : Text);
+  PROCEDURE ConvertPdfToPdfA3(InFile : Text; XmlFile : Text; OutFile : Text);
   VAR
     HttpClient : DotNet "'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'.System.Net.Http.HttpClient";
     MultipartContent : DotNet "'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'.System.Net.Http.MultipartFormDataContent";
     FileStream : DotNet "'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089'.System.IO.FileStream";
+    XmlFileStream : DotNet "'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089'.System.IO.FileStream";
     StreamContent : DotNet "'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'.System.Net.Http.StreamContent";
+    XmlStreamContent : DotNet "'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'.System.Net.Http.StreamContent";
     HttpResponse : DotNet "'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'.System.Net.Http.HttpResponseMessage";
     ResultStream : DotNet "'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089'.System.IO.FileStream";
     FileMode : DotNet "'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089'.System.IO.FileMode";
@@ -43,11 +45,18 @@ OBJECT Codeunit 50000 PDF Converter
     // 3. Add file to the multipart content (param name must be "file")
     MultipartContent.Add(StreamContent, 'file', 'source.pdf');
 
-    // 4. Send Post Request (Synchronous wait for simplicity in C/AL)
+    // 4. Load the XML file (optional)
+    IF XmlFile <> '' THEN BEGIN
+      XmlFileStream := XmlFileStream.FileStream(XmlFile, FileMode.Open);
+      XmlStreamContent := XmlStreamContent.StreamContent(XmlFileStream);
+      MultipartContent.Add(XmlStreamContent, 'xmlFile', 'factur-x.xml');
+    END;
+
+    // 5. Send Post Request (Synchronous wait for simplicity in C/AL)
     HttpResponse := HttpClient.PostAsync(ServiceUrl, MultipartContent).Result;
 
     IF HttpResponse.IsSuccessStatusCode THEN BEGIN
-      // 5. Save the result to OutFile
+      // 6. Save the result to OutFile
       ResultStream := ResultStream.FileStream(OutFile, FileMode.Create);
       HttpResponse.Content.CopyToAsync(ResultStream).Wait();
       ResultStream.Close();
@@ -59,6 +68,8 @@ OBJECT Codeunit 50000 PDF Converter
     END;
 
     FileStream.Close();
+    IF XmlFile <> '' THEN
+      XmlFileStream.Close();
     HttpClient.Dispose();
   END;
 }

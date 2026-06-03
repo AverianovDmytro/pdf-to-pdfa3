@@ -120,13 +120,15 @@ class PdfConversionServiceTest {
         }
         MockMultipartFile file = new MockMultipartFile("file", "test.pdf", "application/pdf", pdfContent);
         
-        // Use a more realistic (though minimal) ZUGFeRD 2.x XML to satisfy XSD if possible, 
-        // or expect it to fail if we don't provide a valid one.
-        // Actually, the current test uses a very simple XML which will FAIL XSD validation.
-        byte[] xmlContent = "<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\"><rsm:ExchangedDocumentContext></rsm:ExchangedDocumentContext></rsm:CrossIndustryInvoice>".getBytes();
+        // Use a simple XML that fails XSD validation.
+        byte[] xmlContent = "<invalid>xml</invalid>".getBytes();
         MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "zugferd.xml", "text/xml", xmlContent);
 
-        // Since it's not a full valid ZUGFeRD XML, it should throw an exception now due to XSD validation
-        assertThrows(Exception.class, () -> pdfConversionService.convertToPdfA3(file, xmlFile));
+        // It should NOT throw an exception now because we ignore XML validation failures during conversion
+        assertDoesNotThrow(() -> pdfConversionService.convertToPdfA3(file, xmlFile));
+        
+        var conversions = conversionRepository.findAll();
+        var lastConversion = conversions.get(conversions.size() - 1);
+        assertEquals("COMPLETED", lastConversion.getStatus());
     }
 }

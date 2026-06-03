@@ -59,16 +59,11 @@ public class PdfConversionController {
             throw new IllegalArgumentException("File is empty");
         }
 
+        List<String> xmlErrors = null;
         if (xmlFile != null && !xmlFile.isEmpty()) {
-            List<String> xmlErrors = xmlValidationService.validateXml(xmlFile.getBytes());
+            xmlErrors = xmlValidationService.validateXml(xmlFile.getBytes());
             if (!xmlErrors.isEmpty()) {
                 log.warn("XML Validation failed for file: {}. Errors: {}", xmlFile.getOriginalFilename(), xmlErrors);
-                Map<String, Object> errorResponse = new HashMap<>();
-                errorResponse.put("message", "ZUGFeRD XML validation failed");
-                errorResponse.put("errors", xmlErrors);
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(convertMapToBytes(errorResponse));
             }
         }
 
@@ -80,10 +75,21 @@ public class PdfConversionController {
 
             log.info("Successfully converted file: {} to {}", originalFilename, newFilename);
 
-            return ResponseEntity.ok()
+            ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + newFilename + "\"")
-                    .contentType(MediaType.APPLICATION_PDF)
-                    .body(convertedPdf);
+                    .contentType(MediaType.APPLICATION_PDF);
+
+            if (xmlErrors != null && !xmlErrors.isEmpty()) {
+                try {
+                    String errorsJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(xmlErrors);
+                    responseBuilder.header("X-XML-Validation-Errors", java.util.Base64.getEncoder().encodeToString(errorsJson.getBytes()));
+                    responseBuilder.header("Access-Control-Expose-Headers", "X-XML-Validation-Errors");
+                } catch (Exception e) {
+                    log.error("Failed to serialize XML errors", e);
+                }
+            }
+
+            return responseBuilder.body(convertedPdf);
         } catch (Exception e) {
             log.error("Failed to convert PDF file: {}", file.getOriginalFilename(), e);
             throw e;

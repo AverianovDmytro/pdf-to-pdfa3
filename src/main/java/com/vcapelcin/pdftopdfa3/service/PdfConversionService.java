@@ -103,9 +103,8 @@ public class PdfConversionService {
             try {
                 validateXmlAgainstXsd(xmlFile);
             } catch (Exception e) {
-                log.error("XML validation failed: {}", e.getMessage());
-                updateConversionStatus(conversion, "FAILED", "XML Validation Error: " + e.getMessage(), startTime);
-                throw e;
+                log.warn("XML validation failed during conversion (ignoring): {}", e.getMessage());
+                // We proceed with conversion even if XML is invalid as per user request
             }
         }
 
