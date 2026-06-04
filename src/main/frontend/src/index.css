@@ -10,14 +10,14 @@
   --radius-xl: 1rem;
   --radius-2xl: 1.5rem;
   
-  --color-background: var(--color-slate-50);
-  --color-foreground: var(--color-brand-navy);
+  --color-background: #f8fafc;
+  --color-foreground: #0f172a;
   
-  --color-primary: var(--color-brand-navy);
-  --color-primary-foreground: var(--color-slate-50);
+  --color-primary: #0f172a;
+  --color-primary-foreground: #f8fafc;
   
-  --color-secondary: var(--color-brand-gold);
-  --color-secondary-foreground: var(--color-brand-navy);
+  --color-secondary: #fbbf24;
+  --color-secondary-foreground: #0f172a;
   
   --shadow-layered: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 10px 15px -3px rgba(0, 0, 0, 0.08);
 }
@@ -32,11 +32,23 @@
 }
 
 @layer components {
+  .btn-3d {
+    @apply relative transition-all duration-75 active:top-[4px] active:shadow-none;
+  }
+  
   .btn-primary {
-    @apply bg-primary text-primary-foreground px-6 py-3 rounded-xl font-semibold transition-all hover:bg-slate-800 active:scale-95 disabled:opacity-50;
+    @apply bg-[#0f172a] text-[#f8fafc] px-6 py-4 rounded-2xl font-black border-b-4 border-slate-950 shadow-[0_6px_0_0_#020617] transition-all hover:bg-slate-800 active:border-b-0 active:translate-y-[6px] active:shadow-none disabled:opacity-50 disabled:translate-y-0;
   }
   
   .btn-secondary {
-    @apply bg-secondary text-secondary-foreground px-6 py-3 rounded-xl font-semibold transition-all hover:bg-amber-500 active:scale-95 disabled:opacity-50;
+    @apply bg-[#fbbf24] text-[#0f172a] px-6 py-4 rounded-2xl font-black border-b-4 border-amber-600 shadow-[0_6px_0_0_#d97706] transition-all hover:bg-amber-500 active:border-b-0 active:translate-y-[6px] active:shadow-none disabled:opacity-50 disabled:translate-y-0;
+  }
+
+  .dropzone-3d {
+    @apply border-4 border-slate-200 shadow-[0_6px_0_0_#e2e8f0] transition-all active:translate-y-[4px] active:shadow-none;
+  }
+
+  .dropzone-3d-active {
+    @apply border-brand-blue shadow-[0_6px_0_0_#2563eb] bg-blue-50/50;
   }
 }

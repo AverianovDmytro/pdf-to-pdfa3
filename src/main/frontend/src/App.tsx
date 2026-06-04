@@ -232,8 +232,8 @@ function App() {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-          <div className="space-y-6 bg-white p-8 rounded-3xl shadow-layered border border-slate-100">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-6">
+          <div className="space-y-6 bg-white p-8 rounded-3xl border-4 border-slate-200 shadow-[0_8px_0_0_#e2e8f0]">
+            <div className="flex items-center justify-between border-b-4 border-slate-200 pb-6 mb-2">
               <div>
                 <h3 className="text-xl font-bold text-brand-navy leading-tight tracking-tight uppercase">Document Processing</h3>
                 <p className="text-slate-400 text-sm font-medium">Standard PDF to ZUGFeRD compliance.</p>
@@ -254,6 +254,7 @@ function App() {
               accept={{ 'application/pdf': ['.pdf'] }}
               title="1. Source PDF"
               description="Drop your standard PDF here"
+              variant="large"
             />
 
             <FileUpload 
@@ -262,6 +263,7 @@ function App() {
               accept={{ 'text/xml': ['.xml'] }}
               title="2. ZUGFeRD XML"
               description="Upload Factur-X/ZUGFeRD data"
+              variant="large"
             />
 
             {loading && (
@@ -283,7 +285,7 @@ function App() {
             <button
               disabled={!file || loading}
               onClick={handleUpload}
-              className="btn-primary w-full py-5 text-lg flex items-center justify-center gap-3 relative overflow-hidden group shadow-xl shadow-brand-navy/10"
+              className="btn-primary w-full py-8 text-2xl flex items-center justify-center gap-4 relative overflow-hidden group"
             >
               <AnimatePresence mode="wait">
                 {loading ? (
@@ -319,26 +321,26 @@ function App() {
             />
 
             {recentConversions.length > 0 && (
-              <div className="pt-6 border-t border-border">
-                <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-4">Recent Conversions</h4>
-                <div className="space-y-3">
+              <div className="pt-8 border-t-4 border-slate-200">
+                <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6">Recent Conversions</h4>
+                <div className="space-y-4">
                   {recentConversions.map(conv => (
-                    <div key={conv.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-2xl border border-border/50 transition-colors hover:bg-muted/50">
-                      <div className="flex items-center gap-3">
+                    <div key={conv.id} className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl border-4 border-slate-200 shadow-[0_6px_0_0_#e2e8f0] transition-all hover:bg-white hover:shadow-md hover:border-brand-blue/20">
+                      <div className="flex items-center gap-4">
                         <div className={cn(
-                          "w-8 h-8 rounded-lg flex items-center justify-center",
+                          "w-10 h-10 rounded-xl flex items-center justify-center",
                           conv.status === 'success' ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-600"
                         )}>
-                          <Icon icon={conv.status === 'success' ? "solar:check-circle-bold" : "solar:info-circle-bold"} className="w-5 h-5" />
+                          <Icon icon={conv.status === 'success' ? "solar:check-circle-bold" : "solar:info-circle-bold"} className="w-6 h-6" />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-foreground truncate max-w-[150px]">{conv.filename}</p>
-                          <p className="text-[10px] text-muted-foreground font-medium">{conv.date}</p>
+                          <p className="text-base font-bold text-brand-navy truncate max-w-[200px]">{conv.filename}</p>
+                          <p className="text-xs text-slate-400 font-medium">{conv.date}</p>
                         </div>
                       </div>
                       <span className={cn(
-                        "text-[10px] font-black uppercase tracking-tight px-2 py-0.5 rounded-md",
-                        conv.status === 'success' ? "text-green-600 bg-green-50" : "text-amber-600 bg-amber-50"
+                        "text-xs font-black uppercase tracking-tight px-3 py-1 rounded-lg",
+                        conv.status === 'success' ? "text-green-600 bg-green-50 border border-green-100" : "text-amber-600 bg-amber-50 border border-amber-100"
                       )}>
                         {conv.status}
                       </span>
@@ -350,7 +352,7 @@ function App() {
           </div>
 
           <div className="sticky top-8 space-y-8">
-            <div className="bg-card/80 backdrop-blur-xl p-10 rounded-[2.5rem] shadow-layered border border-border/50 h-full min-h-[400px]">
+            <div className="bg-white p-10 rounded-[2.5rem] border-4 border-slate-200 shadow-[0_8px_0_0_#e2e8f0] h-full min-h-[400px]">
                <div className="flex items-center justify-between mb-6">
                  <h3 className="text-2xl font-bold text-foreground flex items-center gap-2">
                     <div className="w-2 h-8 bg-primary rounded-full"></div>
