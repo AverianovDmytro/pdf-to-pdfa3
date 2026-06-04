@@ -3,7 +3,7 @@
 ## 1. Backend Enhancements
 
 ### 1.1 Model & Persistence
-1. [x] Add `xmlFilename` (String) and `xmlSize` (Long) fields to `com.vcapelcin.pdftopdfa3.model.Conversion`.
+1. [x] Add `xmlFilename` (String) and `xmlSize` (Long) fields to `com.vcapelcin.pdf2zugferd.model.Conversion`.
 2. [x] Ensure database schema is updated (JPA auto-update or migration).
 
 ### 1.2 Service Layer (`PdfConversionService.java`)

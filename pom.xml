@@ -9,7 +9,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.vcapelcin</groupId>
-    <artifactId>pdf-to-pdfa3</artifactId>
+    <artifactId>pdf2zugferd</artifactId>
     <version>0.0.5</version>
     <name>PDF to PDF A3</name>
     <description>PDF to PDF A3</description>

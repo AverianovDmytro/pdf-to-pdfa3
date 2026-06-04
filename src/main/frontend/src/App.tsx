@@ -1,14 +1,13 @@
 import { FileRejection } from 'react-dropzone';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import axios, { AxiosError } from 'axios';
 import { Icon } from '@iconify/react';
 import { FileUpload } from './components/FileUpload';
-import { PDFPreview } from './components/PDFPreview';
-import { XMLPreview } from './components/XMLPreview';
 import { StatusDisplay } from './components/StatusDisplay';
 import { cn } from './components/lib/utils';
 import { parseZUGFeRD, ZUGFeRDData } from './components/lib/zugferdParser';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import * as Toast from '@radix-ui/react-toast';
 
 export interface ValidationError {
   line: number;
@@ -35,6 +34,26 @@ function App() {
   const [pdfPreview, setPdfPreview] = useState<string | null>(null);
   const [xmlData, setXmlData] = useState<ZUGFeRDData | null>(null);
   const [previewTab, setPreviewTab] = useState<'pdf' | 'xml'>('pdf');
+  const [toastOpen, setToastOpen] = useState(false);
+  const [toastContent, setToastContent] = useState({ title: '', description: '', variant: 'success' as 'success' | 'error' });
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('darkMode');
+      if (saved !== null) return JSON.parse(saved);
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+  }, [darkMode]);
+
   const [recentConversions, setRecentConversions] = useState<RecentConversion[]>(() => {
     const saved = localStorage.getItem('recentConversions');
     return saved ? JSON.parse(saved) : [];
@@ -88,18 +107,6 @@ function App() {
     }
   }, []);
 
-  const handleReset = () => {
-    setFile(null);
-    setXmlFile(null);
-    setLoading(false);
-    setStatus('idle');
-    setMessage('');
-    setUploadProgress(0);
-    setXmlErrors([]);
-    setPdfPreview(null);
-    setXmlData(null);
-    setPreviewTab('pdf');
-  };
 
   const handleUpload = async () => {
     if (!file) return;
@@ -117,6 +124,7 @@ function App() {
     try {
       const response = await axios.post('/api/v1/convert', formData, {
         responseType: 'blob',
+        timeout: 60000, // 60 seconds timeout
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || progressEvent.loaded));
           setUploadProgress(percentCompleted);
@@ -149,6 +157,12 @@ function App() {
 
       setStatus(currentStatus);
       setMessage(currentMessage);
+      setToastContent({
+        title: currentStatus === 'success' ? 'Conversion Successful' : 'Conversion Warning',
+        description: currentMessage,
+        variant: currentStatus === 'success' ? 'success' : 'error'
+      });
+      setToastOpen(true);
       
       // Update recent conversions
       const newConversion: RecentConversion = {
@@ -166,12 +180,31 @@ function App() {
       console.error(axiosError);
       setStatus('error');
       
+      if (axiosError.code === 'ECONNABORTED') {
+        const msg = 'Request timed out. The file might be too large or the server is busy.';
+        setMessage(msg);
+        setToastContent({ title: 'Connection Timeout', description: msg, variant: 'error' });
+        setToastOpen(true);
+        return;
+      }
+
+      if (axiosError.response?.status === 429) {
+        const msg = 'Too many requests. Please wait a moment before trying again.';
+        setMessage(msg);
+        setToastContent({ title: 'Rate Limit Exceeded', description: msg, variant: 'error' });
+        setToastOpen(true);
+        return;
+      }
+      
       if (axiosError.response && axiosError.response.data instanceof Blob) {
         const reader = new FileReader();
         reader.onload = () => {
           try {
             const errorData = JSON.parse(reader.result as string);
-            setMessage(errorData.message || 'Failed to convert PDF. Please try again.');
+            const msg = errorData.message || 'Failed to convert PDF. Please try again.';
+            setMessage(msg);
+            setToastContent({ title: 'Conversion Failed', description: msg, variant: 'error' });
+            setToastOpen(true);
             if (errorData.errors) {
               if (Array.isArray(errorData.errors) && errorData.errors.length > 0 && typeof errorData.errors[0] === 'object') {
                 setXmlErrors(errorData.errors as unknown as ValidationError[]);
@@ -185,13 +218,19 @@ function App() {
               }
             }
           } catch {
-            setMessage('Failed to convert PDF. Please try again.');
+            const msg = 'Failed to convert PDF. Please try again.';
+            setMessage(msg);
+            setToastContent({ title: 'Error', description: msg, variant: 'error' });
+            setToastOpen(true);
           }
         };
         reader.readAsText(axiosError.response.data);
       } else {
         const errorData = axiosError.response?.data;
-        setMessage(errorData?.message || 'Failed to convert PDF. Please try again.');
+        const msg = errorData?.message || 'Failed to convert PDF. Please try again.';
+        setMessage(msg);
+        setToastContent({ title: 'Conversion Failed', description: msg, variant: 'error' });
+        setToastOpen(true);
         if (errorData?.errors) {
           // If errors is an array of objects matching ValidationError
           if (Array.isArray(errorData.errors) && errorData.errors.length > 0 && typeof errorData.errors[0] === 'object') {
@@ -213,106 +252,72 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center p-4 md:p-8 selection:bg-brand-gold/30">
-      <div className="max-w-6xl w-full">
-        <header className="mb-12 text-center md:text-left flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-navy text-white rounded-full text-xs font-bold uppercase tracking-widest mb-4">
-              <Icon icon="solar:shield-check-bold" className="w-4 h-4 text-brand-gold" />
-              ISO 19005-3 Compliant
+    <Toast.Provider swipeDirection="right">
+      <div className="min-h-screen bg-background-primary p-[1rem_1rem_2rem] md:p-[2rem_1.5rem_3rem]">
+        {/* Header */}
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 sm:mb-10 pb-6 border-b border-border-tertiary gap-4">
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 bg-text-primary rounded-lg flex items-center justify-center text-background-primary shrink-0 transition-colors">
+                <Icon icon="ti:file-invoice" className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-[18px] font-bold tracking-[-0.3px] text-text-primary">ZUGFeRD Converter</div>
+                <div className="text-[11px] font-medium tracking-[1.5px] uppercase text-text-tertiary mt-1">
+                  PDF/A-3 · ISO 19005-3 · Factur-X 2.2
+                </div>
+              </div>
             </div>
-            <h1 className="text-4xl md:text-6xl font-black text-brand-navy leading-none tracking-tighter uppercase italic">
-              PDF<span className="text-brand-gold">/</span>A-3 <br />
-              <span className="text-brand-blue">Converter</span>
-            </h1>
           </div>
-          <p className="text-slate-500 font-medium max-w-xs md:text-right">
-            Secure, professional-grade ZUGFeRD 2.2 validation and PDF/A-3 generation.
-          </p>
+          <div className="flex items-center gap-4 self-start sm:self-auto">
+            <button 
+              onClick={() => setDarkMode(!darkMode)}
+              className="w-10 h-10 rounded-lg border border-border-tertiary flex items-center justify-center text-text-secondary hover:bg-background-secondary transition-colors"
+              title="Toggle theme"
+            >
+              <Icon icon={darkMode ? "ti:sun" : "ti:moon"} className="text-lg" />
+            </button>
+            <div className="bg-background-success text-text-success text-[11px] font-semibold tracking-[0.5px] px-2.5 py-1 rounded-[20px] flex items-center gap-1.5 transition-colors">
+              <Icon icon="ti:shield-check" className="text-[13px]" />
+              GDPR Compliant
+            </div>
+          </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-          <div className="space-y-6 bg-white p-8 rounded-3xl border-4 border-slate-200 shadow-[0_8px_0_0_#e2e8f0]">
-            <div className="flex items-center justify-between border-b-4 border-slate-200 pb-6 mb-2">
-              <div>
-                <h3 className="text-xl font-bold text-brand-navy leading-tight tracking-tight uppercase">Document Processing</h3>
-                <p className="text-slate-400 text-sm font-medium">Standard PDF to ZUGFeRD compliance.</p>
-              </div>
-              {(file || xmlFile) && (
-                <button
-                  onClick={handleReset}
-                  className="p-2 bg-slate-100 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all text-slate-400 flex items-center gap-1 group/clear"
-                >
-                  <Icon icon="solar:trash-bin-minimalistic-bold" className="w-5 h-5" />
-                </button>
-              )}
+        <main className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 lg:gap-6 items-start">
+          {/* Left Column */}
+          <div className="flex flex-col gap-4">
+            <div className="zu-section-label">Document processing</div>
+            
+            <div className="grid grid-cols-1 gap-4">
+              <FileUpload 
+                file={file}
+                onDrop={onDropPdf}
+                accept={{ 'application/pdf': ['.pdf'] }}
+                title="Drop your source PDF here"
+                description="Standard invoice PDF · any version"
+                num="01"
+              />
+
+              <FileUpload 
+                file={xmlFile}
+                onDrop={onDropXml}
+                accept={{ 'text/xml': ['.xml'] }}
+                title="Upload ZUGFeRD XML data"
+                description="Factur-X / ZUGFeRD structured data"
+                num="02"
+              />
             </div>
 
-            <FileUpload 
-              file={file}
-              onDrop={onDropPdf}
-              accept={{ 'application/pdf': ['.pdf'] }}
-              title="1. Source PDF"
-              description="Drop your standard PDF here"
-              variant="large"
-            />
-
-            <FileUpload 
-              file={xmlFile}
-              onDrop={onDropXml}
-              accept={{ 'text/xml': ['.xml'] }}
-              title="2. ZUGFeRD XML"
-              description="Upload Factur-X/ZUGFeRD data"
-              variant="large"
-            />
-
             {loading && (
-              <div className="space-y-3 pt-4">
-                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${uploadProgress}%` }}
-                    className="bg-brand-navy h-full shadow-[0_0_15px_rgba(15,23,42,0.3)]" 
-                  />
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-brand-navy/40 uppercase tracking-widest">Processing Data</span>
-                  <span className="text-xs font-black text-brand-navy">{uploadProgress}%</span>
-                </div>
+              <div className="w-full h-[3px] bg-border-tertiary rounded-[2px] overflow-hidden">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${uploadProgress}%` }}
+                  className="bg-text-primary h-full rounded-[2px]" 
+                />
               </div>
             )}
-
-            <button
-              disabled={!file || loading}
-              onClick={handleUpload}
-              className="btn-primary w-full py-8 text-2xl flex items-center justify-center gap-4 relative overflow-hidden group"
-            >
-              <AnimatePresence mode="wait">
-                {loading ? (
-                  <motion.div 
-                    key="loading"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="flex items-center"
-                  >
-                    <Icon icon="solar:spinner-bold" className="w-6 h-6 mr-3 animate-spin" />
-                    <span>{uploadProgress < 100 ? 'Uploading...' : 'Finalizing Compliance...'}</span>
-                  </motion.div>
-                ) : (
-                  <motion.div 
-                    key="idle"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="flex items-center"
-                  >
-                    <Icon icon="solar:magic-stick-bold-duotone" className="w-6 h-6 text-brand-gold" />
-                    <span className="uppercase tracking-wide">Generate Compliant PDF/A-3</span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </button>
 
             <StatusDisplay 
               status={status}
@@ -320,135 +325,141 @@ function App() {
               xmlErrors={xmlErrors}
             />
 
-            {recentConversions.length > 0 && (
-              <div className="pt-8 border-t-4 border-slate-200">
-                <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6">Recent Conversions</h4>
-                <div className="space-y-4">
-                  {recentConversions.map(conv => (
-                    <div key={conv.id} className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl border-4 border-slate-200 shadow-[0_6px_0_0_#e2e8f0] transition-all hover:bg-white hover:shadow-md hover:border-brand-blue/20">
-                      <div className="flex items-center gap-4">
-                        <div className={cn(
-                          "w-10 h-10 rounded-xl flex items-center justify-center",
-                          conv.status === 'success' ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-600"
-                        )}>
-                          <Icon icon={conv.status === 'success' ? "solar:check-circle-bold" : "solar:info-circle-bold"} className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <p className="text-base font-bold text-brand-navy truncate max-w-[200px]">{conv.filename}</p>
-                          <p className="text-xs text-slate-400 font-medium">{conv.date}</p>
-                        </div>
-                      </div>
-                      <span className={cn(
-                        "text-xs font-black uppercase tracking-tight px-3 py-1 rounded-lg",
-                        conv.status === 'success' ? "text-green-600 bg-green-50 border border-green-100" : "text-amber-600 bg-amber-50 border border-amber-100"
-                      )}>
-                        {conv.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <button
+              disabled={!file || !xmlFile || loading}
+              onClick={handleUpload}
+              className="btn-generate"
+            >
+              {loading ? (
+                <>
+                  <Icon icon="ti:loader-2" className="text-[20px] animate-spin" />
+                  <div className="flex flex-col items-start">
+                    <span>Processing…</span>
+                    <span className="text-[11px] font-medium opacity-60 tracking-[0.5px] mt-0.5">
+                      Embedding XML · Validating
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Icon icon="ti:bolt" className="text-[20px]" />
+                  <div className="flex flex-col items-start">
+                    <span>Generate PDF/A-3</span>
+                    <span className="text-[11px] font-medium opacity-60 tracking-[0.5px] mt-0.5">
+                      ZUGFeRD 2.2 · Compliant archive
+                    </span>
+                  </div>
+                </>
+              )}
+            </button>
           </div>
 
-          <div className="sticky top-8 space-y-8">
-            <div className="bg-white p-10 rounded-[2.5rem] border-4 border-slate-200 shadow-[0_8px_0_0_#e2e8f0] h-full min-h-[400px]">
-               <div className="flex items-center justify-between mb-6">
-                 <h3 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                    <div className="w-2 h-8 bg-primary rounded-full"></div>
-                    Document Preview
-                 </h3>
-                 {(pdfPreview || xmlData) && (
-                   <div className="flex bg-muted p-1 rounded-xl">
-                     <button
-                       onClick={() => setPreviewTab('pdf')}
-                       className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${previewTab === 'pdf' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                     >
-                       PDF
-                     </button>
-                     <button
-                       onClick={() => setPreviewTab('xml')}
-                       className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${previewTab === 'xml' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                     >
-                       XML Data
-                     </button>
-                   </div>
-                 )}
-               </div>
-               
-               {previewTab === 'pdf' ? (
-                 pdfPreview ? (
-                   <PDFPreview 
-                     pdfPreview={pdfPreview}
-                     onRemove={() => {
-                       setPdfPreview(null);
-                       setFile(null);
-                       setStatus('idle');
-                     }}
-                   />
-                 ) : (
-                   <div className="h-[500px] border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center text-muted-foreground bg-muted/20 animate-in fade-in duration-500">
-                      <Icon icon="solar:document-linear" className="w-16 h-16 mb-4 opacity-20" />
-                      <p className="text-base font-bold text-foreground">No PDF selected</p>
-                      <p className="text-sm mt-1">Upload a PDF to see a live preview</p>
-                   </div>
-                 )
-               ) : (
-                 xmlData ? (
-                   <XMLPreview 
-                     data={xmlData}
-                     onRemove={() => {
-                       setXmlData(null);
-                       setXmlFile(null);
-                       setPreviewTab('pdf');
-                     }}
-                   />
-                 ) : (
-                   <div className="h-[500px] border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center text-muted-foreground bg-muted/20 animate-in fade-in duration-500">
-                      <Icon icon="solar:xml-linear" className="w-16 h-16 mb-4 opacity-20" />
-                      <p className="text-base font-bold text-foreground">No XML data</p>
-                      <p className="text-sm mt-1">Upload a ZUGFeRD XML to preview data</p>
-                   </div>
-                 )
-               )}
-            </div>
-            
-            {xmlData && (
-              <div className="bg-card p-10 rounded-3xl shadow-layered border border-border animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <h3 className="text-2xl font-black text-foreground mb-6 uppercase tracking-tight flex items-center gap-2">
-                  <Icon icon="solar:bill-list-bold-duotone" className="text-primary w-8 h-8" />
-                  Invoice Summary
-                </h3>
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Invoice Number</p>
-                    <p className="text-lg font-bold text-foreground">{xmlData.header.id}</p>
+          {/* Right Column (Sidebar) */}
+          <div className="flex flex-col gap-4">
+            <div className="sidebar-card">
+              <div className="zu-section-label">Compliance spec</div>
+              <div className="flex flex-col">
+                {[
+                  { key: 'Standard', val: 'ISO 19005-3', ok: true },
+                  { key: 'Profile', val: 'PDF/A-3b', ok: true },
+                  { key: 'ZUGFeRD', val: 'v2.2 EN16931', ok: true },
+                  { key: 'Attachment', val: 'factur-x.xml', ok: false },
+                  { key: 'Conformance', val: 'XRECHNUNG', ok: true },
+                ].map((spec, i) => (
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-border-tertiary last:border-none text-[12px]">
+                    <span className="text-text-secondary font-medium">{spec.key}</span>
+                    <span className={cn("font-semibold font-mono-dm text-[11px]", spec.ok ? "text-text-success" : "text-text-primary")}>
+                      {spec.val}
+                    </span>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Date</p>
-                    <p className="text-lg font-bold text-foreground">{xmlData.header.date}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Vendor</p>
-                    <p className="text-lg font-bold text-foreground">{xmlData.header.sellerName}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Amount</p>
-                    <p className="text-2xl font-black text-primary">
-                      {xmlData.header.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {xmlData.header.currency}
-                    </p>
-                  </div>
-                </div>
+                ))}
               </div>
-            )}
+            </div>
+
+            <div className="sidebar-card">
+              <div className="zu-section-label">Preview</div>
+              <div className={cn(
+                "bg-background-secondary rounded-[12px] h-[200px] flex flex-col items-center justify-center gap-2 border border-border-tertiary",
+                (pdfPreview || xmlData) && "bg-background-success border-border-success"
+              )}>
+                {(pdfPreview || xmlData) ? (
+                  <>
+                    <Icon icon="ti:file-check" className="text-[36px] text-text-success" />
+                    <p className="text-[12px] text-text-success font-medium">Document ready</p>
+                    <button 
+                      onClick={() => setPreviewTab(previewTab === 'pdf' ? 'xml' : 'pdf')}
+                      className="mt-2 text-[10px] font-bold uppercase tracking-widest text-text-success/70 hover:text-text-success"
+                    >
+                      Switch to {previewTab === 'pdf' ? 'XML' : 'PDF'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Icon icon="ti:file-unknown" className="text-[36px] text-text-tertiary" />
+                    <p className="text-[12px] text-text-tertiary font-medium">No document selected</p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="sidebar-card">
+              <div className="zu-section-label">Recent activity</div>
+              <div className="flex flex-col gap-0.5">
+                {recentConversions.length > 0 ? (
+                  recentConversions.map(conv => (
+                    <div key={conv.id} className="flex items-center gap-2.5 p-[10px_12px] rounded-[10px] hover:bg-background-secondary transition-colors cursor-pointer group">
+                      <div className={cn("w-[7px] h-[7px] rounded-full shrink-0", conv.status === 'success' ? "bg-green-500" : "bg-red-500")} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-semibold text-text-primary truncate">{conv.filename}</div>
+                        <div className="text-[11px] text-text-tertiary font-mono-dm mt-0.5">{conv.date}</div>
+                      </div>
+                      <div className={cn(
+                        "text-[11px] font-semibold px-2 py-0.5 rounded-[20px]",
+                        conv.status === 'success' ? "bg-background-success text-text-success" : "bg-background-danger text-text-danger"
+                      )}>
+                        {conv.status}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-[12px] text-text-tertiary text-center py-4">No recent activity</div>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
+        </main>
+
+        <footer className="mt-10 pt-4 border-t border-border-tertiary flex flex-col sm:flex-row items-center justify-between text-[11px] text-text-tertiary gap-4">
+          <span>© 2026 AS-Soft Business Solutions</span>
+          <div className="flex gap-6">
+            <a href="#" className="hover:text-text-secondary transition-colors font-medium">GDPR Compliant</a>
+            <a href="#" className="hover:text-text-secondary transition-colors font-medium">Terms of Service</a>
+            <a href="#" className="hover:text-text-secondary transition-colors font-medium">Support</a>
+          </div>
+        </footer>
+
+        <Toast.Root
+          className={cn(
+            "fixed bottom-4 right-4 z-[100] flex flex-col gap-1 w-80 p-4 rounded-xl shadow-2xl animate-in slide-in-from-right-full duration-300",
+            toastContent.variant === 'success' ? "bg-text-primary text-background-primary" : "bg-background-danger text-text-danger border border-text-danger/20"
+          )}
+          open={toastOpen}
+          onOpenChange={setToastOpen}
+        >
+          <Toast.Title className="text-sm font-bold flex items-center gap-2">
+            <Icon icon={toastContent.variant === 'success' ? "ti:circle-check" : "ti:alert-triangle"} className="text-lg" />
+            {toastContent.title}
+          </Toast.Title>
+          <Toast.Description className="text-xs font-medium opacity-80 leading-relaxed">
+            {toastContent.description}
+          </Toast.Description>
+          <Toast.Close className="absolute top-2 right-2 opacity-50 hover:opacity-100 transition-opacity">
+            <Icon icon="ti:x" />
+          </Toast.Close>
+        </Toast.Root>
+        <Toast.Viewport />
       </div>
-      
-      <footer className="mt-16 text-muted-foreground text-sm pb-8 font-medium">
-        © 2026 AS-Soft Business Solutions • Secure Document Archiving
-      </footer>
-    </div>
+    </Toast.Provider>
   );
 }
 

@@ -1,9 +1,37 @@
 import { ZUGFeRDData } from './lib/zugferdParser';
 import { Icon } from '@iconify/react';
+import { useState } from 'react';
 
 interface XMLPreviewProps {
   data: ZUGFeRDData;
   onRemove: () => void;
+}
+
+interface CollapsibleSectionProps {
+  title: string;
+  icon: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}
+
+function CollapsibleSection({ title, icon, children, defaultOpen = true }: CollapsibleSectionProps) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border border-border-tertiary rounded-lg overflow-hidden bg-background-primary transition-colors">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-4 py-3 flex items-center justify-between bg-background-secondary hover:bg-background-tertiary transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Icon icon={icon} className="text-text-tertiary" />
+          <span className="text-[11px] font-bold uppercase tracking-widest text-text-secondary">{title}</span>
+        </div>
+        <Icon icon={isOpen ? "ti:chevron-up" : "ti:chevron-down"} className="text-text-tertiary" />
+      </button>
+      {isOpen && <div className="p-4">{children}</div>}
+    </div>
+  );
 }
 
 export function XMLPreview({ data, onRemove }: XMLPreviewProps) {
@@ -12,102 +40,81 @@ export function XMLPreview({ data, onRemove }: XMLPreviewProps) {
   const { summary, seller, buyer, lineItems, totals } = data;
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
-      <div className="flex items-center justify-between border-b border-border pb-4 sticky top-0 bg-card/95 backdrop-blur-sm z-10">
+    <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
+      <div className="flex items-center justify-between border-b border-border-tertiary pb-4 sticky top-0 bg-background-primary/95 backdrop-blur-sm z-10 transition-colors">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-            <Icon icon="solar:xml-bold-duotone" className="w-6 h-6 text-primary" />
+          <div className="w-10 h-10 bg-text-primary rounded-lg flex items-center justify-center transition-colors">
+            <Icon icon="ti:code" className="w-6 h-6 text-background-primary" />
           </div>
           <div>
-            <h4 className="font-bold text-foreground">ZUGFeRD Data</h4>
-            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Extracted from XML</p>
+            <h4 className="font-bold text-text-primary text-sm uppercase tracking-tight">ZUGFeRD Extraction</h4>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">Structured Data</p>
           </div>
         </div>
         <button 
           onClick={onRemove}
-          className="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-destructive"
+          className="p-2 hover:bg-background-secondary rounded-md transition-colors text-text-tertiary hover:text-text-danger"
         >
-          <Icon icon="solar:trash-bin-minimalistic-linear" className="w-5 h-5" />
+          <Icon icon="ti:x" className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Parties */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-muted/30 p-5 rounded-[1.5rem] border border-border/50">
-          <h5 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
-            <Icon icon="solar:shop-2-bold-duotone" className="w-3.5 h-3.5" />
-            Supplier
-          </h5>
+      <CollapsibleSection title="Parties" icon="ti:users">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1">
-            <p className="font-bold text-foreground leading-tight">{seller?.name || 'N/A'}</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">{seller?.address || 'No address provided'}</p>
-            {seller?.vatId && (
-              <p className="text-[10px] font-mono font-bold text-primary mt-2 bg-primary/5 px-2 py-0.5 rounded inline-block">VAT: {seller.vatId}</p>
-            )}
+            <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Supplier</p>
+            <p className="font-bold text-text-primary text-sm leading-tight">{seller?.name || 'N/A'}</p>
+            <p className="text-[11px] text-text-secondary leading-relaxed">{seller?.address || 'No address provided'}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Buyer</p>
+            <p className="font-bold text-text-primary text-sm leading-tight">{buyer?.name || 'N/A'}</p>
+            <p className="text-[11px] text-text-secondary leading-relaxed">{buyer?.address || 'No address provided'}</p>
           </div>
         </div>
-        <div className="bg-muted/30 p-5 rounded-[1.5rem] border border-border/50">
-          <h5 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
-            <Icon icon="solar:user-bold-duotone" className="w-3.5 h-3.5" />
-            Buyer
-          </h5>
-          <div className="space-y-1">
-            <p className="font-bold text-foreground leading-tight">{buyer?.name || 'N/A'}</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">{buyer?.address || 'No address provided'}</p>
-            {buyer?.vatId && (
-              <p className="text-[10px] font-mono font-bold text-primary mt-2 bg-primary/5 px-2 py-0.5 rounded inline-block">VAT: {buyer.vatId}</p>
-            )}
-          </div>
-        </div>
-      </div>
+      </CollapsibleSection>
 
-      {/* Line Items */}
-      <div className="space-y-3">
-        <h5 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 px-1">
-          <Icon icon="solar:list-bold-duotone" className="w-3.5 h-3.5" />
-          Line Items
-        </h5>
-        <div className="border border-border/50 rounded-2xl overflow-hidden bg-muted/20">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-muted/50 border-b border-border/50">
+      <CollapsibleSection title="Line Items" icon="ti:list">
+        <div className="border border-border-tertiary rounded-lg overflow-x-auto bg-background-primary">
+          <table className="w-full text-left text-[11px]">
+            <thead className="bg-background-secondary border-b border-border-tertiary transition-colors">
               <tr>
-                <th className="px-4 py-3 font-black uppercase tracking-widest text-[9px] text-muted-foreground">Description</th>
-                <th className="px-4 py-3 font-black uppercase tracking-widest text-[9px] text-muted-foreground text-right">Qty</th>
-                <th className="px-4 py-3 font-black uppercase tracking-widest text-[9px] text-muted-foreground text-right">Price</th>
+                <th className="px-3 py-2 font-bold uppercase tracking-widest text-[9px] text-text-tertiary">Description</th>
+                <th className="px-3 py-2 font-bold uppercase tracking-widest text-[9px] text-text-tertiary text-right">Qty</th>
+                <th className="px-3 py-2 font-bold uppercase tracking-widest text-[9px] text-text-tertiary text-right">Price</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/30">
+            <tbody className="divide-y divide-border-tertiary transition-colors">
               {lineItems.length > 0 ? lineItems.map((item, idx) => (
-                <tr key={idx} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3 text-foreground font-medium">{item.description}</td>
-                  <td className="px-4 py-3 text-muted-foreground text-right font-mono">{item.quantity}</td>
-                  <td className="px-4 py-3 text-foreground text-right font-bold">{item.unitPrice}</td>
+                <tr key={idx} className="hover:bg-background-secondary transition-colors">
+                  <td className="px-3 py-2 text-text-primary font-medium">{item.description}</td>
+                  <td className="px-3 py-2 text-text-secondary text-right font-mono-dm font-bold">{item.quantity}</td>
+                  <td className="px-3 py-2 text-text-primary text-right font-bold">{item.unitPrice}</td>
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-muted-foreground italic">No line items found</td>
+                  <td colSpan={3} className="px-3 py-6 text-center text-text-tertiary italic">No items identified</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </div>
+      </CollapsibleSection>
 
-      {/* Totals */}
-      <div className="bg-foreground p-6 rounded-[2rem] text-background shadow-xl">
+      <div className="bg-text-primary p-5 rounded-lg text-background-primary shadow-lg transition-colors">
         <div className="space-y-3">
-          <div className="flex justify-between items-center text-xs font-medium opacity-60 uppercase tracking-widest">
-            <span>Tax Total</span>
-            <span>{totals.taxAmount} {summary.currencyCode}</span>
+          <div className="flex justify-between items-center text-[10px] font-bold opacity-60 uppercase tracking-[0.2em]">
+            <span>Taxation Total</span>
+            <span className="font-mono-dm">{totals.taxAmount} {summary.currencyCode}</span>
           </div>
-          <div className="flex justify-between items-center pt-4 border-t border-background/10">
+          <div className="flex justify-between items-center pt-3 border-t border-background-primary/10">
             <div className="flex flex-col">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">Grand Total</span>
-              <span className="text-3xl font-black text-primary drop-shadow-[0_2px_10px_rgba(var(--primary),0.3)]">
+              <span className="text-[9px] font-bold uppercase tracking-[0.3em] opacity-40">Settlement Amount</span>
+              <span className="text-2xl font-bold tracking-tighter">
                 {totals.totalAmount}
               </span>
             </div>
-            <span className="text-xl font-bold opacity-40">{summary.currencyCode}</span>
+            <span className="text-lg font-bold opacity-40 font-mono-dm">{summary.currencyCode}</span>
           </div>
         </div>
       </div>
