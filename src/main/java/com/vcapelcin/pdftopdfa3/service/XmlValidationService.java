@@ -44,11 +44,15 @@ public class XmlValidationService {
         this.resourceLoader = resourceLoader;
     }
 
-    public List<ValidationError> validateXmlDetailed(byte[] xmlBytes) {
+    public List<ValidationError> validateXmlDetailed(byte[] xmlBytes, String profile) {
         List<ValidationError> errors = new ArrayList<>();
         try {
             SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
-            Resource resource = resourceLoader.getResource("classpath:xsd/zugferd22/factur-x.xsd");
+            
+            // Map profile to XSD if needed, currently we use the same XSD for all
+            // but in the future we could have different ones
+            String xsdPath = "classpath:xsd/zugferd22/factur-x.xsd";
+            Resource resource = resourceLoader.getResource(xsdPath);
             
             try (InputStream xsdStream = resource.getInputStream()) {
                 Schema schema = factory.newSchema(new StreamSource(xsdStream));
@@ -85,6 +89,10 @@ public class XmlValidationService {
         return errors;
     }
 
+    public List<ValidationError> validateXmlDetailed(byte[] xmlBytes) {
+        return validateXmlDetailed(xmlBytes, "BASIC");
+    }
+
     private ValidationError mapToError(SAXParseException e, String type) {
         return ValidationError.builder()
                 .line(e.getLineNumber())
@@ -94,13 +102,17 @@ public class XmlValidationService {
                 .build();
     }
 
-    public List<String> validateXml(byte[] xmlBytes) {
-        List<ValidationError> detailedErrors = validateXmlDetailed(xmlBytes);
+    public List<String> validateXml(byte[] xmlBytes, String profile) {
+        List<ValidationError> detailedErrors = validateXmlDetailed(xmlBytes, profile);
         List<String> errors = new ArrayList<>();
         for (ValidationError err : detailedErrors) {
             errors.add(String.format("[%s] Line: %d, Col: %d: %s", 
                     err.getType(), err.getLine(), err.getColumn(), err.getMessage()));
         }
         return errors;
+    }
+
+    public List<String> validateXml(byte[] xmlBytes) {
+        return validateXml(xmlBytes, "BASIC");
     }
 }
