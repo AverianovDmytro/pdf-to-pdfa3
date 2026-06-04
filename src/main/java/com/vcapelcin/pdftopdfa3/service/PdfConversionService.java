@@ -235,7 +235,7 @@ public class PdfConversionService {
         fileSpec.setEmbeddedFileUnicode(embeddedFile);
         
         COSDictionary dict = fileSpec.getCOSObject();
-        dict.setName(COSName.getPDFName("AFRelationship"), "Data");
+        dict.setName(COSName.getPDFName("AFRelationship"), "Source"); // Factur-X/ZUGFeRD uses "Source" or "Data"
 
         PDDocumentCatalog catalog = document.getDocumentCatalog();
         COSName afName = COSName.getPDFName("AF");
@@ -338,8 +338,21 @@ public class PdfConversionService {
                 intent.setOutputConditionIdentifier("sRGB IEC61966-2.1");
                 intent.setRegistryName("http://www.color.org");
                 document.getDocumentCatalog().addOutputIntent(intent);
+                log.debug("Successfully added sRGB output intent");
             } else {
                 log.warn("ICC profile not found at {}", profilePath);
+                // Try fallback to classpath resource loader if getResourceAsStream fails
+                try (InputStream fallbackProfile = resourceLoader.getResource("classpath:sRGB.icc").getInputStream()) {
+                    if (fallbackProfile != null) {
+                        PDOutputIntent intent = new PDOutputIntent(document, fallbackProfile);
+                        intent.setInfo("sRGB IEC61966-2.1");
+                        intent.setOutputCondition("sRGB IEC61966-2.1");
+                        intent.setOutputConditionIdentifier("sRGB IEC61966-2.1");
+                        intent.setRegistryName("http://www.color.org");
+                        document.getDocumentCatalog().addOutputIntent(intent);
+                        log.info("Successfully added sRGB output intent using fallback loader");
+                    }
+                }
             }
         } catch (Exception e) {
             log.error("Error setting output intent with profile at {}", profilePath, e);

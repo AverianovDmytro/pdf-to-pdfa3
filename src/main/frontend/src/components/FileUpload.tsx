@@ -1,10 +1,10 @@
-import { useDropzone, DropzoneOptions } from 'react-dropzone';
+import { FileRejection, useDropzone, DropzoneOptions } from 'react-dropzone';
 import { Icon } from '@iconify/react';
 import { cn } from './lib/utils';
 
 interface FileUploadProps {
   file: File | null;
-  onDrop: (acceptedFiles: File[], fileRejections: any[]) => void;
+  onDrop: (acceptedFiles: File[], fileRejections: FileRejection[]) => void;
   accept: DropzoneOptions['accept'];
   title: string;
   description: string;
@@ -36,8 +36,11 @@ export function FileUpload({ file, onDrop, accept, title, description }: FileUpl
 
       {file ? (
         <div className="flex flex-col items-center animate-in fade-in zoom-in duration-500">
-          <div className="w-20 h-20 bg-secondary/10 rounded-2xl flex items-center justify-center mb-4 shadow-inner">
-            <Icon icon="solar:document-bold-duotone" className="w-12 h-12 text-secondary" />
+          <div className="w-20 h-20 bg-secondary/10 rounded-2xl flex items-center justify-center mb-4 shadow-inner relative group/file">
+            <Icon icon="solar:document-bold-duotone" className="w-12 h-12 text-secondary transition-transform group-hover/file:scale-110" />
+            <div className="absolute inset-0 bg-secondary/20 rounded-2xl opacity-0 group-hover/file:opacity-100 transition-opacity flex items-center justify-center">
+               <Icon icon="solar:pen-bold" className="w-6 h-6 text-secondary" />
+            </div>
           </div>
           <span className="text-lg font-bold text-foreground truncate max-w-xs">{file.name}</span>
           <span className="text-sm font-bold text-secondary mt-1 bg-secondary/10 px-3 py-1 rounded-full uppercase tracking-wider">

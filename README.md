@@ -25,6 +25,18 @@ A robust Spring Boot service designed to convert standard PDF documents into the
 
 - Docker and Docker Compose (Recommended)
 - **OR** JDK 21+ and Maven 3.9+
+- **Node.js**: The project uses Maven to manage the Node.js runtime for the frontend. However, for IDE support (e.g., in IntelliJ IDEA), it's recommended to have Node.js v22.16.0 installed on your system or configured in your IDE.
+
+### Configuring Node.js in IntelliJ IDEA
+
+If you see an error like "Specify a Node.js runtime correctly" in IntelliJ IDEA:
+
+1. Open **Settings** (`Ctrl+Alt+S` or `Cmd+,` on macOS).
+2. Go to **Languages & Frameworks** > **Node.js**.
+3. In the **Node interpreter** field:
+   - If you have Node.js installed globally, select it from the dropdown.
+   - Alternatively, you can point it to the Node binary downloaded by Maven after running `./mvnw generate-resources`: `target/node/node` (macOS/Linux) or `target/node/node.exe` (Windows).
+4. Click **OK**.
 
 ### Using Docker Compose (Quickest)
 
@@ -37,16 +49,17 @@ A robust Spring Boot service designed to convert standard PDF documents into the
 
 ### Manual Build
 
-1. Build the frontend:
+1. **Install Node.js and dependencies** via Maven:
    ```bash
-   cd src/main/frontend
-   npm install && npm run build
+   ./mvnw generate-resources
    ```
-2. Build and run the Spring Boot application:
+   *Note: This will download Node.js and npm locally to the `target/` directory and run `npm install`.*
+
+2. **Build and run** the Spring Boot application:
    ```bash
-   cd ../../../
    ./mvnw spring-boot:run
    ```
+   *Note: The frontend will be automatically built and bundled during the Maven build process.*
 
 ## API Documentation
 

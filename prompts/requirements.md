@@ -1,72 +1,91 @@
-# Developer Guide: PDF to PDF/A-3 (ZUGFeRD) UI Redesign
+# Project Requirements & Developer Guide: PDF to PDF/A-3 (ZUGFeRD) Converter
 
-This guide outlines the steps to transform the current frontend into a professional, "Finance-Style" interface. The redesign focuses on clarity, accessibility, and modern aesthetics suitable for secure document archiving.
+This document serves as the primary developer guide and requirements specification for the PDF to PDF/A-3 conversion application. It outlines the project objectives, technical architecture, and implementation steps.
 
-## 1. Analysis & Preparation
+## 1. Project Overview & Objectives
+The goal of this project is to provide a professional, secure, and user-friendly web application for converting standard PDF documents into PDF/A-3 compliant files with embedded ZUGFeRD (Factur-X) XML data.
 
-### Reference Image Analysis
-Analyze the reference image at `/styles/style_finance.png` (if available) for:
-- **Color Palette**: Extract Hex colors for:
-  - Background (Main & Sections)
-  - Primary (Call-to-action, Brand)
-  - Secondary (Success, Accents)
-  - Text (Headers, Body, Subtext)
-- **Typography**: Match the brand's feel using Google Fonts (e.g., *Poppins*, *Roboto*, or *Inter*).
-- **Composition**: Note the layout, grid spacing, and motifs used.
-
-### Roles & Mindset
-- **Senior UI/UX Designer**: Prioritize user flow, visual hierarchy, and emotional response (trust/security).
-- **Front-End Developer**: Implement clean, responsive React components using Tailwind CSS.
+### Core Objectives:
+- **Compliance**: Generate PDF/A-3 files that meet ISO 19005-3 standards.
+- **ZUGFeRD Integration**: Embed valid ZUGFeRD 2.2 XML into the PDF as an attached file.
+- **Validation**: Provide real-time validation of the provided XML against official XSD schemas.
+- **Professional UI**: Offer a modern, high-end finance-oriented interface (inspired by `e-rechnungs-checker.de`).
+- **Performance**: Ensure fast conversion with clear progress feedback.
 
 ---
 
-## 2. Implementation Steps
+## 2. Technical Architecture
 
-### Phase 1: Styling Foundation
-- **Colors**: Update `tailwind.config.js` with the extracted hex colors. Use descriptive names like `brand-primary`, `surface-muted`, etc.
-- **Typography**: Import the selected font in `index.css` and set it as the default `sans` font in Tailwind.
-- **Global Effects**:
-  - Implement larger, "friendly" `border-radius` (e.g., `2xl` or `3xl`).
-  - Apply soft, layered shadows for depth (e.g., `shadow-layered` class).
-  - Increase base font sizes for better readability.
+### Backend (Java / Spring Boot)
+- **Framework**: Spring Boot 3.x
+- **PDF Processing**: Apache PDFBox (for PDF manipulation and PDF/A-3 generation).
+- **XML Validation**: JAXP (Java API for XML Processing) with XSD schemas.
+- **Rate Limiting**: Bucket4j for protecting the conversion endpoint.
+- **Persistence**: Spring Data JPA with H2/PostgreSQL (for tracking conversion history).
 
-### Phase 2: Component Overhaul
-- **Icons**:
-  - Replace generic icons with **Iconify Solar Linear Icons** for general UI elements.
-  - Use **Iconify Simple Icons** for brand logos (standardize at `96x36px`).
-- **Imagery**:
-  - Integrate high-quality placeholder images from Unsplash (`source.unsplash.com`) that match the "Secure Archiving" or "Financial Technology" mood.
-- **Layout**:
-  - Use a clean, structured grid.
-  - Ensure generous whitespace (padding/margin) between sections.
-
-### Phase 3: Interactive Elements
-- **FileUpload**: Enhance the drop zone with better hover states and clearer success/error feedback.
-- **Preview Sections**: Ensure the PDF and XML previews are prominent and easy to toggle.
-- **Feedback**: Use consistent status displays for loading, success, and error states.
+### Frontend (TypeScript / React)
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS 4.x with custom branding.
+- **Components**: Radix UI primitives & Shadcn/UI for accessible, high-quality components.
+- **Icons**: Solar Icons (duotone style) for a modern look.
+- **API Client**: Axios for multipart file uploads and error handling.
 
 ---
 
-## 3. Best Practices
+## 3. Implementation Steps (Actionable Guide)
 
-- **Tailwind Utility First**: Stick to Tailwind classes for layout and styling to maintain consistency.
-- **Accessibility**: Maintain high contrast ratios, especially for financial data and status messages.
-- **Responsiveness**: Verify that the "friendly" interface translates well to tablet and mobile views.
+### Phase 1: Environment & Build Pipeline
+1.  **Maven Integration**: Ensure the `frontend-maven-plugin` is configured to handle `npm install`, `npm run lint`, and `npm run build`.
+2.  **Static Resource Mapping**: Configure Vite to output production builds directly to `src/main/resources/static`.
+3.  **Linting & Type Safety**: Integrate `npm run lint` into the Maven `generate-resources` phase to enforce code quality before packaging.
+
+### Phase 2: Backend Core Logic
+1.  **Service Layer**: Implement `PdfConversionService` using PDFBox to:
+    - Load original PDF.
+    - Embed ZUGFeRD XML with correct relationship (`/AFRelationship /Data`).
+    - Add XMP Metadata (Dublin Core, PDF/A Identification).
+    - Embed necessary fonts to ensure PDF/A compliance.
+2.  **Validation Service**: Implement `XmlValidationService` to validate incoming XML against `factur-x.xsd`.
+3.  **Controller**: Create a REST endpoint `/api/v1/convert` that accepts `multipart/form-data`.
+
+### Phase 3: Frontend UI/UX (The "Finance" Look)
+1.  **Branding**: Use a sophisticated color palette:
+    - `brand-navy`: Primary background/text.
+    - `primary`: Highlight/Action color (e.g., Amber/Gold).
+    - `brand-blue`: Secondary accents.
+2.  **Layout**: Implement a clean, two-column layout:
+    - **Left Column**: "Document Processing" actions (File uploads, Profile selection).
+    - **Right Column**: "Live Preview" (PDF viewer and XML data extraction).
+3.  **Visual Feedback**:
+    - Use `solar:spinner-bold` for processing states.
+    - Implement a detailed `StatusDisplay` that shows validation errors in a clear, tabular format.
+    - Show file metadata (Name, Size) immediately after selection.
+
+### Phase 4: Validation & Error Handling
+1.  **Header-based Communication**: Pass XML validation errors from backend to frontend via the `X-XML-Validation-Errors` Base64-encoded header.
+2.  **Tabular Error Reporting**: Render errors with `Type`, `Location` (Line/Col), and `Description`.
+3.  **Resilience**: Allow the conversion to proceed even with XML warnings, but clearly flag them to the user.
 
 ---
 
-## 4. Building & Verification
+## 4. Best Practices & Design Patterns
 
-### Build Process
-```bash
-cd src/main/frontend
-npm install
-npm run build
-```
+### Frontend
+- **Type Safety**: Define interfaces for all API responses and parsed XML data (e.g., `ZUGFeRDData`).
+- **Component Composition**: Use Radix UI primitives to ensure accessibility and consistent behavior.
+- **Conditional Rendering**: Handle "Empty", "Loading", and "Result" states gracefully to avoid layout shifts.
+- **Utility-First CSS**: Leverage Tailwind's `cn` utility for dynamic class merging.
 
-### Verification Checklist
-- [ ] Colors match the reference style.
-- [ ] Solar Linear icons are used for UI elements.
-- [ ] Border-radius and shadows are consistent across all cards/containers.
-- [ ] The interface remains "friendly" and readable with larger fonts.
-- [ ] Frontend builds without errors and integrates with the Spring Boot backend (`src/main/resources/static`).
+### Backend
+- **Streaming**: Process files using input streams where possible to minimize memory footprint.
+- **Async Processing**: Use `@Async` for long-running conversion tasks if necessary.
+- **Logging**: Maintain detailed SLF4J logs for debugging conversion and validation failures.
+- **Security**: Sanitize file names and limit upload sizes.
+
+---
+
+## 5. Testing Strategy
+- **Unit Tests**: Test XML parsing and validation logic independently.
+- **Integration Tests**: Verify the full `/api/v1/convert` flow using `MockMvc` and sample PDF/XML files.
+- **Frontend Tests**: Use Vitest/React Testing Library for critical UI components (e.g., `FileUpload`, `zugferdParser`).
+- **Compliance Checks**: Periodically verify generated files against official PDF/A-3 validators (like VeraPDF).

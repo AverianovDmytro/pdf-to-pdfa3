@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.vcapelcin</groupId>
     <artifactId>pdf-to-pdfa3</artifactId>
-    <version>0.0.3</version>
+    <version>0.0.4</version>
     <name>PDF to PDF A3</name>
     <description>PDF to PDF A3</description>
     <url/>
@@ -122,6 +122,12 @@
             <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.verapdf</groupId>
+            <artifactId>validation-model</artifactId>
+            <version>1.26.2</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <dependencyManagement>
@@ -226,6 +232,16 @@
                         <phase>generate-resources</phase>
                         <configuration>
                             <arguments>install</arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm-lint</id>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <phase>generate-resources</phase>
+                        <configuration>
+                            <arguments>run lint</arguments>
                         </configuration>
                     </execution>
                     <execution>

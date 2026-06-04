@@ -59,11 +59,11 @@ public class PdfConversionController {
             throw new IllegalArgumentException("File is empty");
         }
 
-        List<String> xmlErrors = null;
+        List<XmlValidationService.ValidationError> xmlErrors = null;
         if (xmlFile != null && !xmlFile.isEmpty()) {
-            xmlErrors = xmlValidationService.validateXml(xmlFile.getBytes());
+            xmlErrors = xmlValidationService.validateXmlDetailed(xmlFile.getBytes());
             if (!xmlErrors.isEmpty()) {
-                log.warn("XML Validation failed for file: {}. Errors: {}", xmlFile.getOriginalFilename(), xmlErrors);
+                log.warn("XML Validation failed for file: {}. Errors: {}", xmlFile.getOriginalFilename(), xmlErrors.size());
             }
         }
 
@@ -81,9 +81,13 @@ public class PdfConversionController {
 
             if (xmlErrors != null && !xmlErrors.isEmpty()) {
                 try {
-                    String errorsJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(xmlErrors);
-                    responseBuilder.header("X-XML-Validation-Errors", java.util.Base64.getEncoder().encodeToString(errorsJson.getBytes()));
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    String errorsJson = mapper.writeValueAsString(xmlErrors);
+                    // Use standard Base64 encoding for the header
+                    String encodedErrors = java.util.Base64.getEncoder().encodeToString(errorsJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    responseBuilder.header("X-XML-Validation-Errors", encodedErrors);
                     responseBuilder.header("Access-Control-Expose-Headers", "X-XML-Validation-Errors");
+                    log.debug("Added {} XML validation errors to header (encoded length: {})", xmlErrors.size(), encodedErrors.length());
                 } catch (Exception e) {
                     log.error("Failed to serialize XML errors", e);
                 }
@@ -94,6 +98,25 @@ public class PdfConversionController {
             log.error("Failed to convert PDF file: {}", file.getOriginalFilename(), e);
             throw e;
         }
+    }
+
+    @org.springframework.web.bind.annotation.ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> handleException(Exception e) {
+        log.error("Unhandled exception in controller", e);
+        Map<String, Object> error = new HashMap<>();
+        error.put("error", e.getMessage() != null ? e.getMessage() : "An unexpected error occurred");
+        error.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+        error.put("timestamp", System.currentTimeMillis());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    }
+
+    @org.springframework.web.bind.annotation.ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException e) {
+        Map<String, Object> error = new HashMap<>();
+        error.put("error", e.getMessage());
+        error.put("status", HttpStatus.BAD_REQUEST.value());
+        error.put("timestamp", System.currentTimeMillis());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
     private byte[] convertMapToBytes(Map<String, Object> map) {

@@ -1,7 +1,8 @@
+import { ZUGFeRDData } from './lib/zugferdParser';
 import { Icon } from '@iconify/react';
 
 interface XMLPreviewProps {
-  data: any;
+  data: ZUGFeRDData;
   onRemove: () => void;
 }
 
@@ -11,79 +12,80 @@ export function XMLPreview({ data, onRemove }: XMLPreviewProps) {
   const { summary, seller, buyer, lineItems, totals } = data;
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
+      <div className="flex items-center justify-between border-b border-border pb-4 sticky top-0 bg-card/95 backdrop-blur-sm z-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-secondary/10 rounded-xl flex items-center justify-center">
-            <Icon icon="solar:xml-bold-duotone" className="w-6 h-6 text-secondary" />
+          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+            <Icon icon="solar:xml-bold-duotone" className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <h4 className="font-bold text-slate-900">ZUGFeRD Data</h4>
-            <p className="text-xs text-slate-500">Extracted from uploaded XML</p>
+            <h4 className="font-bold text-foreground">ZUGFeRD Data</h4>
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Extracted from XML</p>
           </div>
         </div>
         <button 
           onClick={onRemove}
-          className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-red-500"
+          className="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-destructive"
         >
           <Icon icon="solar:trash-bin-minimalistic-linear" className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Invoice Summary */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-slate-50 p-4 rounded-2xl">
-          <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Invoice Number</p>
-          <p className="font-bold text-slate-900">{summary.invoiceNumber || 'N/A'}</p>
-        </div>
-        <div className="bg-slate-50 p-4 rounded-2xl">
-          <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Issue Date</p>
-          <p className="font-bold text-slate-900">{summary.issueDate || 'N/A'}</p>
-        </div>
-      </div>
-
       {/* Parties */}
-      <div className="grid grid-cols-2 gap-8">
-        <div>
-          <h5 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Supplier</h5>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-muted/30 p-5 rounded-[1.5rem] border border-border/50">
+          <h5 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+            <Icon icon="solar:shop-2-bold-duotone" className="w-3.5 h-3.5" />
+            Supplier
+          </h5>
           <div className="space-y-1">
-            <p className="font-bold text-slate-900">{seller?.name || 'N/A'}</p>
-            <p className="text-sm text-slate-500">{seller?.address || 'No address provided'}</p>
-            <p className="text-xs font-mono text-slate-400">{seller?.vatId && `VAT: ${seller.vatId}`}</p>
+            <p className="font-bold text-foreground leading-tight">{seller?.name || 'N/A'}</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">{seller?.address || 'No address provided'}</p>
+            {seller?.vatId && (
+              <p className="text-[10px] font-mono font-bold text-primary mt-2 bg-primary/5 px-2 py-0.5 rounded inline-block">VAT: {seller.vatId}</p>
+            )}
           </div>
         </div>
-        <div>
-          <h5 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Buyer</h5>
+        <div className="bg-muted/30 p-5 rounded-[1.5rem] border border-border/50">
+          <h5 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+            <Icon icon="solar:user-bold-duotone" className="w-3.5 h-3.5" />
+            Buyer
+          </h5>
           <div className="space-y-1">
-            <p className="font-bold text-slate-900">{buyer?.name || 'N/A'}</p>
-            <p className="text-sm text-slate-500">{buyer?.address || 'No address provided'}</p>
-            <p className="text-xs font-mono text-slate-400">{buyer?.vatId && `VAT: ${buyer.vatId}`}</p>
+            <p className="font-bold text-foreground leading-tight">{buyer?.name || 'N/A'}</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">{buyer?.address || 'No address provided'}</p>
+            {buyer?.vatId && (
+              <p className="text-[10px] font-mono font-bold text-primary mt-2 bg-primary/5 px-2 py-0.5 rounded inline-block">VAT: {buyer.vatId}</p>
+            )}
           </div>
         </div>
       </div>
 
       {/* Line Items */}
-      <div>
-        <h5 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Line Items</h5>
-        <div className="border border-slate-100 rounded-2xl overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 border-b border-slate-100">
+      <div className="space-y-3">
+        <h5 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 px-1">
+          <Icon icon="solar:list-bold-duotone" className="w-3.5 h-3.5" />
+          Line Items
+        </h5>
+        <div className="border border-border/50 rounded-2xl overflow-hidden bg-muted/20">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-muted/50 border-b border-border/50">
               <tr>
-                <th className="px-4 py-3 font-bold text-slate-700">Description</th>
-                <th className="px-4 py-3 font-bold text-slate-700 text-right">Qty</th>
-                <th className="px-4 py-3 font-bold text-slate-700 text-right">Price</th>
+                <th className="px-4 py-3 font-black uppercase tracking-widest text-[9px] text-muted-foreground">Description</th>
+                <th className="px-4 py-3 font-black uppercase tracking-widest text-[9px] text-muted-foreground text-right">Qty</th>
+                <th className="px-4 py-3 font-black uppercase tracking-widest text-[9px] text-muted-foreground text-right">Price</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {lineItems.length > 0 ? lineItems.map((item: any, idx: number) => (
-                <tr key={idx}>
-                  <td className="px-4 py-3 text-slate-600">{item.description}</td>
-                  <td className="px-4 py-3 text-slate-600 text-right">{item.quantity}</td>
-                  <td className="px-4 py-3 text-slate-600 text-right">{item.unitPrice}</td>
+            <tbody className="divide-y divide-border/30">
+              {lineItems.length > 0 ? lineItems.map((item, idx) => (
+                <tr key={idx} className="hover:bg-muted/30 transition-colors">
+                  <td className="px-4 py-3 text-foreground font-medium">{item.description}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-right font-mono">{item.quantity}</td>
+                  <td className="px-4 py-3 text-foreground text-right font-bold">{item.unitPrice}</td>
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-slate-400 italic">No line items found</td>
+                  <td colSpan={3} className="px-4 py-8 text-center text-muted-foreground italic">No line items found</td>
                 </tr>
               )}
             </tbody>
@@ -92,14 +94,21 @@ export function XMLPreview({ data, onRemove }: XMLPreviewProps) {
       </div>
 
       {/* Totals */}
-      <div className="bg-slate-900 p-6 rounded-2xl text-white">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-slate-400 text-sm">Tax Total</span>
-          <span className="font-bold">{totals.taxAmount} {summary.currencyCode}</span>
-        </div>
-        <div className="flex justify-between items-center pt-2 border-t border-slate-800">
-          <span className="font-bold">Grand Total</span>
-          <span className="text-2xl font-black text-accent">{totals.totalAmount} {summary.currencyCode}</span>
+      <div className="bg-foreground p-6 rounded-[2rem] text-background shadow-xl">
+        <div className="space-y-3">
+          <div className="flex justify-between items-center text-xs font-medium opacity-60 uppercase tracking-widest">
+            <span>Tax Total</span>
+            <span>{totals.taxAmount} {summary.currencyCode}</span>
+          </div>
+          <div className="flex justify-between items-center pt-4 border-t border-background/10">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">Grand Total</span>
+              <span className="text-3xl font-black text-primary drop-shadow-[0_2px_10px_rgba(var(--primary),0.3)]">
+                {totals.totalAmount}
+              </span>
+            </div>
+            <span className="text-xl font-bold opacity-40">{summary.currencyCode}</span>
+          </div>
         </div>
       </div>
     </div>

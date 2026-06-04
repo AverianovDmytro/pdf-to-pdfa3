@@ -1,58 +1,67 @@
-# Project Improvement Plan: UI Redesign & Developer Guide Implementation
+# Implementation Plan: PDF to PDF/A-3 (ZUGFeRD) Improvements
 
-This plan details the steps required to implement the improvements outlined in `prompts/requirements.md` for the PDF to PDF/A-3 (ZUGFeRD) project.
+This plan outlines the technical steps to enhance the PDF to PDF/A-3 converter, focusing on compliance, robustness, and user experience, based on the `requirements.md` developer guide.
 
-## Phase 1: Styling Foundation & Global Configuration
-1. **Color Palette Refinement**
-   - Review current CSS variables in `src/main/frontend/src/index.css`.
-   - Extract hex colors from `/styles/style_finance.png` for Background, Primary, Secondary, and Text.
-   - Update `tailwind.config.js` to use descriptive names (e.g., `brand-primary`, `surface-muted`).
+## Phase 1: Backend Compliance & Robustness
+### 1.1 PDF/A-3 & XMP Metadata Enhancement
+- **Objective**: Ensure 100% compliance with ISO 19005-3.
+- **Actions**:
+    - Update `PdfConversionService` to include a full XMP Extension Schema for ZUGFeRD (Factur-X).
+    - Ensure the `/AFRelationship` is correctly set to `/Data` for the embedded XML.
+    - Explicitly embed a Color Profile (e.g., sRGB IEC61966-2.1) to meet PDF/A requirements.
+    - Add a `VeraPDF` integration (or similar validation library) to the test suite for automated compliance checking.
 
-2. **Typography Setup**
-   - Import Google Fonts (Poppins, Inter, or Roboto) in `src/main/frontend/src/index.css`.
-   - Update `tailwind.config.js` to set the selected font as the default `sans` stack.
+### 1.2 Enhanced XML Validation
+- **Objective**: Provide granular feedback on XML structure and business rules.
+- **Actions**:
+    - Extend `XmlValidationService` to support multiple ZUGFeRD profiles (MINIMUM, BASIC, EN 16931, EXTENDED).
+    - Implement a custom `ErrorHandler` to capture line and column numbers for all XSD validation events.
+    - Add Schematron validation (if applicable) for deeper business rule checks beyond XSD.
 
-3. **Global Effects & Spacing**
-   - Standardize `border-radius` to `2xl` or `3xl` in `tailwind.config.js` and components.
-   - Refine `shadow-layered` utility in `tailwind.config.js` for soft, depth-giving effects.
-   - Increase base font sizes and line heights across the application for a "friendly" feel.
+### 1.3 Error Handling & API Resilience
+- **Objective**: Improve communication between backend and frontend.
+- **Actions**:
+    - Standardize the error response format.
+    - Implement a custom exception handler to catch PDFBox or JAXP errors and return meaningful JSON instead of stack traces.
+    - Refine the Base64 encoding of validation errors in headers to ensure no data loss for large error sets.
 
-## Phase 2: Component Overhaul & Visual Identity
-4. **Iconography Update**
-   - Audit all components for icon usage.
-   - Replace generic icons (e.g., from `lucide-react`) with **Iconify Solar Linear Icons**.
-   - Standardize brand logos using **Iconify Simple Icons** at `96x36px`.
+## Phase 2: Frontend UI/UX Refinement
+### 2.1 Modernized Dashboard (e-rechnungs-checker.de inspired)
+- **Objective**: A professional, clean, and interactive interface.
+- **Actions**:
+    - Implement a "Glassmorphism" effect for the main container using Tailwind's `backdrop-blur`.
+    - Enhance the `Hero` section with animated SVG icons from the Solar Icon set.
+    - Add a "Recent Conversions" list (local storage based) for quick access to previously processed files.
 
-5. **Imagery Integration**
-   - Replace static or missing images with high-quality Unsplash placeholders.
-   - Match the "Secure Archiving" and "FinTech" mood in Hero and feature sections.
+### 2.2 Advanced XML Visualization
+- **Objective**: Make the embedded data readable and actionable.
+- **Actions**:
+    - Create a dedicated `ZUGFeRDDataViewer` component.
+    - Implement syntax highlighting for the XML preview (using a library like `prismjs` or a lightweight custom implementation).
+    - Build a "Summary Card" that extracts and displays key invoice data (Invoice ID, Date, Total Amount, Currency, Vendor Name).
 
-6. **Layout & Grid Refinement**
-   - Ensure generous whitespace (padding/margin) between main UI blocks.
-   - Verify responsive behavior of the multi-column layout.
+### 2.3 Interactive Validation Feedback
+- **Objective**: Help users fix their XML files.
+- **Actions**:
+    - In `StatusDisplay`, make validation errors "clickable" to highlight the corresponding line in the XML preview.
+    - Use color-coded badges for error severity (Error vs. Warning).
 
-## Phase 3: Enhanced Interactivity & Feedback
-7. **FileUpload Enhancement**
-   - Improve the drag-and-drop zone's visual feedback (hover, active states).
-   - Add clearer success/error animations or transitions.
+## Phase 3: Infrastructure & Quality Assurance
+### 3.1 Frontend Build Optimization
+- **Objective**: Ensure a fast and reliable production build.
+- **Actions**:
+    - Fine-tune Vite's build options for better chunking.
+    - Ensure all assets (fonts, icons) are correctly processed and served by Spring Boot.
+    - Verify that Tailwind 4's JIT compiler is correctly picking up all dynamic classes.
 
-8. **Preview Section Optimization**
-   - Ensure PDF and XML previews are prominent and easily switchable.
-   - Add loading skeletons or placeholders while previews are rendering.
+### 3.2 Automated Testing & CI
+- **Objective**: Prevent regressions.
+- **Actions**:
+    - Add unit tests for the `zugferdParser` utility.
+    - Implement an integration test that performs a full "Upload -> Convert -> Download" cycle.
+    - Set up a sample suite of valid/invalid PDF and XML files in `src/test/resources` for continuous testing.
 
-9. **Status & Error Handling**
-   - Standardize status displays for different application states.
-   - Ensure high contrast for all feedback messages.
-
-## Phase 4: Build, Integration & Verification
-10. **Backend Integration**
-    - Verify Vite build output path matches `src/main/resources/static`.
-    - Ensure Spring Boot correctly serves the frontend from the static resources folder.
-
-11. **Quality Assurance**
-    - Run `npm run build` and `npm run lint` in the frontend project.
-    - Execute a full conversion cycle to verify UI-to-Backend communication.
-    - Check accessibility (contrast, aria-labels).
-
-12. **Documentation Update**
-    - Update `prompts/requirements.md` if any new best practices are discovered during implementation.
+## Success Metrics
+1. **Compliance**: Generated files pass the VeraPDF "PDF/A-3b" profile validation.
+2. **Performance**: Conversion of a standard 1-page PDF takes < 1.5 seconds.
+3. **Usability**: Zero UI-related console errors and 100% test pass rate in both frontend and backend.

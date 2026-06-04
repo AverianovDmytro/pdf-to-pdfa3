@@ -1,12 +1,28 @@
+import { FileRejection } from 'react-dropzone';
 import { useState, useCallback } from 'react';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { Icon } from '@iconify/react';
 import { FileUpload } from './components/FileUpload';
 import { PDFPreview } from './components/PDFPreview';
 import { XMLPreview } from './components/XMLPreview';
 import { StatusDisplay } from './components/StatusDisplay';
+import { cn } from './components/lib/utils';
 import { Hero } from './components/layout/Hero';
-import { parseZUGFeRD } from './components/lib/zugferdParser';
+import { parseZUGFeRD, ZUGFeRDData } from './components/lib/zugferdParser';
+
+export interface ValidationError {
+  line: number;
+  column: number;
+  message: string;
+  type: 'ERROR' | 'FATAL' | 'WARNING';
+}
+
+interface RecentConversion {
+  id: string;
+  filename: string;
+  date: string;
+  status: 'success' | 'error';
+}
 
 function App() {
   const [file, setFile] = useState<File | null>(null);
@@ -15,12 +31,16 @@ function App() {
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [xmlErrors, setXmlErrors] = useState<string[]>([]);
+  const [xmlErrors, setXmlErrors] = useState<ValidationError[]>([]);
   const [pdfPreview, setPdfPreview] = useState<string | null>(null);
-  const [xmlData, setXmlData] = useState<any | null>(null);
+  const [xmlData, setXmlData] = useState<ZUGFeRDData | null>(null);
   const [previewTab, setPreviewTab] = useState<'pdf' | 'xml'>('pdf');
+  const [recentConversions, setRecentConversions] = useState<RecentConversion[]>(() => {
+    const saved = localStorage.getItem('recentConversions');
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  const onDropPdf = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
+  const onDropPdf = useCallback((acceptedFiles: File[], fileRejections: FileRejection[]) => {
     if (fileRejections.length > 0) {
       setStatus('error');
       setMessage('Please upload a valid PDF file.');
@@ -41,7 +61,7 @@ function App() {
     }
   }, []);
 
-  const onDropXml = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
+  const onDropXml = useCallback((acceptedFiles: File[], fileRejections: FileRejection[]) => {
     if (fileRejections.length > 0) {
       setStatus('error');
       setMessage('Please upload a valid XML file.');
@@ -112,45 +132,79 @@ function App() {
       link.click();
       link.remove();
 
+      let currentStatus: 'success' | 'error' = 'success';
+      let currentMessage = 'PDF successfully converted to PDF/A-3!';
+
       const validationErrorsHeader = response.headers['x-xml-validation-errors'];
       if (validationErrorsHeader) {
         try {
           const decodedErrors = JSON.parse(atob(validationErrorsHeader));
           setXmlErrors(decodedErrors);
-          setStatus('error'); // Show red status but file was downloaded
-          setMessage('PDF converted, but ZUGFeRD XML validation failed.');
+          currentStatus = 'error'; // Show red status but file was downloaded
+          currentMessage = 'PDF converted, but ZUGFeRD XML validation failed.';
         } catch (e) {
           console.error('Failed to parse validation errors header', e);
-          setStatus('success');
-          setMessage('PDF successfully converted to PDF/A-3!');
         }
-      } else {
-        setStatus('success');
-        setMessage('PDF successfully converted to PDF/A-3!');
       }
-    } catch (err: any) {
-      console.error(err);
+
+      setStatus(currentStatus);
+      setMessage(currentMessage);
+      
+      // Update recent conversions
+      const newConversion: RecentConversion = {
+        id: Math.random().toString(36).substr(2, 9),
+        filename: file.name,
+        date: new Date().toLocaleString(),
+        status: currentStatus
+      };
+      const updated = [newConversion, ...recentConversions].slice(0, 5);
+      setRecentConversions(updated);
+      localStorage.setItem('recentConversions', JSON.stringify(updated));
+
+    } catch (err) {
+      const axiosError = err as AxiosError<{ message?: string; errors?: string[] }>;
+      console.error(axiosError);
       setStatus('error');
       
-      if (err.response && err.response.data instanceof Blob) {
+      if (axiosError.response && axiosError.response.data instanceof Blob) {
         const reader = new FileReader();
         reader.onload = () => {
           try {
             const errorData = JSON.parse(reader.result as string);
             setMessage(errorData.message || 'Failed to convert PDF. Please try again.');
             if (errorData.errors) {
-              setXmlErrors(errorData.errors);
+              if (Array.isArray(errorData.errors) && errorData.errors.length > 0 && typeof errorData.errors[0] === 'object') {
+                setXmlErrors(errorData.errors as unknown as ValidationError[]);
+              } else if (Array.isArray(errorData.errors)) {
+                setXmlErrors(errorData.errors.map((msg: string) => ({
+                  line: 0,
+                  column: 0,
+                  message: msg,
+                  type: 'ERROR'
+                })));
+              }
             }
-          } catch (e) {
+          } catch {
             setMessage('Failed to convert PDF. Please try again.');
           }
         };
-        reader.readAsText(err.response.data);
+        reader.readAsText(axiosError.response.data);
       } else {
-        const errorData = err.response?.data;
+        const errorData = axiosError.response?.data;
         setMessage(errorData?.message || 'Failed to convert PDF. Please try again.');
         if (errorData?.errors) {
-          setXmlErrors(errorData.errors);
+          // If errors is an array of objects matching ValidationError
+          if (Array.isArray(errorData.errors) && errorData.errors.length > 0 && typeof errorData.errors[0] === 'object') {
+            setXmlErrors(errorData.errors as unknown as ValidationError[]);
+          } else if (Array.isArray(errorData.errors)) {
+            // Fallback for simple string errors
+            setXmlErrors(errorData.errors.map((msg: string) => ({
+              line: 0,
+              column: 0,
+              message: msg,
+              type: 'ERROR'
+            })));
+          }
         }
       }
     } finally {
@@ -159,27 +213,26 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center p-8">
+    <div className="min-h-screen bg-background flex flex-col items-center p-8 selection:bg-primary/30">
       <div className="max-w-5xl w-full">
         <Hero />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-          <div className="space-y-8 bg-card p-10 rounded-3xl shadow-layered border border-border">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-2xl font-bold text-foreground mb-2 leading-tight">Upload Documents</h3>
-                <p className="text-muted-foreground text-base">Provide the source PDF and the corresponding ZUGFeRD XML file.</p>
+          <div className="space-y-8 bg-card/80 backdrop-blur-xl p-10 rounded-[2.5rem] shadow-layered border border-border/50">
+              <div className="flex items-center justify-between border-b border-border pb-6">
+                <div>
+                  <h3 className="text-2xl font-black text-foreground mb-1 leading-tight tracking-tight uppercase">Document Processing</h3>
+                  <p className="text-muted-foreground text-sm font-medium">Step-by-step PDF/A-3 generation.</p>
+                </div>
+                {(file || xmlFile) && (
+                  <button
+                    onClick={handleReset}
+                    className="p-2 bg-muted hover:bg-destructive hover:text-white rounded-xl transition-all text-muted-foreground flex items-center gap-1 group/clear"
+                  >
+                    <Icon icon="solar:trash-bin-minimalistic-bold" className="w-5 h-5 transition-transform group-hover/clear:rotate-12" />
+                  </button>
+                )}
               </div>
-              {(file || xmlFile) && (
-                <button
-                  onClick={handleReset}
-                  className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-                >
-                  <Icon icon="solar:refresh-linear" className="w-4 h-4" />
-                  Clear All
-                </button>
-              )}
-            </div>
 
             <FileUpload 
               file={file}
@@ -212,18 +265,22 @@ function App() {
             <button
               disabled={!file || !xmlFile || loading}
               onClick={handleUpload}
-              className="w-full bg-primary text-primary-foreground py-5 rounded-2xl font-bold hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl flex items-center justify-center text-xl group"
+              className="w-full bg-primary text-primary-foreground py-6 rounded-2xl font-black hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl flex items-center justify-center text-xl group relative overflow-hidden"
             >
-              {loading ? (
-                <>
-                  <Icon icon="solar:spinner-bold" className="w-6 h-6 mr-3 animate-spin" />
-                  {uploadProgress < 100 ? 'Uploading Files...' : 'Processing PDF/A-3...'}
-                </>
-              ) : (
-                <>
-                  <span>Step 3: Convert PDF to PDF ZUGFeRD</span>
-                </>
-              )}
+              <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+              <div className="relative flex items-center justify-center">
+                {loading ? (
+                  <>
+                    <Icon icon="solar:spinner-bold" className="w-7 h-7 mr-3 animate-spin" />
+                    <span>{uploadProgress < 100 ? `Uploading (${uploadProgress}%)` : 'Processing PDF/A-3...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Icon icon="solar:magic-stick-bold-duotone" className="w-7 h-7 mr-3 transition-transform group-hover:rotate-12" />
+                    <span className="uppercase tracking-tight">Convert to PDF/A-3 (ZUGFeRD)</span>
+                  </>
+                )}
+              </div>
             </button>
 
             <StatusDisplay 
@@ -231,10 +288,40 @@ function App() {
               message={message}
               xmlErrors={xmlErrors}
             />
+
+            {recentConversions.length > 0 && (
+              <div className="pt-6 border-t border-border">
+                <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-4">Recent Conversions</h4>
+                <div className="space-y-3">
+                  {recentConversions.map(conv => (
+                    <div key={conv.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-2xl border border-border/50 transition-colors hover:bg-muted/50">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center",
+                          conv.status === 'success' ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-600"
+                        )}>
+                          <Icon icon={conv.status === 'success' ? "solar:check-circle-bold" : "solar:info-circle-bold"} className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-foreground truncate max-w-[150px]">{conv.filename}</p>
+                          <p className="text-[10px] text-muted-foreground font-medium">{conv.date}</p>
+                        </div>
+                      </div>
+                      <span className={cn(
+                        "text-[10px] font-black uppercase tracking-tight px-2 py-0.5 rounded-md",
+                        conv.status === 'success' ? "text-green-600 bg-green-50" : "text-amber-600 bg-amber-50"
+                      )}>
+                        {conv.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="sticky top-8">
-            <div className="bg-card p-10 rounded-3xl shadow-layered border border-border h-full min-h-[400px]">
+          <div className="sticky top-8 space-y-8">
+            <div className="bg-card/80 backdrop-blur-xl p-10 rounded-[2.5rem] shadow-layered border border-border/50 h-full min-h-[400px]">
                <div className="flex items-center justify-between mb-6">
                  <h3 className="text-2xl font-bold text-foreground flex items-center gap-2">
                     <div className="w-2 h-8 bg-primary rounded-full"></div>
@@ -294,6 +381,35 @@ function App() {
                  )
                )}
             </div>
+            
+            {xmlData && (
+              <div className="bg-card p-10 rounded-3xl shadow-layered border border-border animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <h3 className="text-2xl font-black text-foreground mb-6 uppercase tracking-tight flex items-center gap-2">
+                  <Icon icon="solar:bill-list-bold-duotone" className="text-primary w-8 h-8" />
+                  Invoice Summary
+                </h3>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Invoice Number</p>
+                    <p className="text-lg font-bold text-foreground">{xmlData.header.id}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Date</p>
+                    <p className="text-lg font-bold text-foreground">{xmlData.header.date}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Vendor</p>
+                    <p className="text-lg font-bold text-foreground">{xmlData.header.sellerName}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Amount</p>
+                    <p className="text-2xl font-black text-primary">
+                      {xmlData.header.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {xmlData.header.currency}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

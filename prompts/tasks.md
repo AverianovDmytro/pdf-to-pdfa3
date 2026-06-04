@@ -1,48 +1,49 @@
-# Task List: UI Redesign & Developer Guide Implementation
+# Task List: PDF to PDF/A-3 (ZUGFeRD) Enhancements
 
-## Phase 1: Styling Foundation & Global Configuration
-1. [x] **Color Palette Refinement**
-   - [x] Review current CSS variables in `src/main/frontend/src/index.css`.
-   - [x] Extract hex colors from `/styles/style_finance.png` for Background, Primary, Secondary, and Text.
-   - [x] Update `tailwind.config.js` to use descriptive names (e.g., `brand-primary`, `surface-muted`).
-2. [x] **Typography Setup**
-   - [x] Import Google Fonts (Poppins, Inter, or Roboto) in `src/main/frontend/src/index.css`.
-   - [x] Update `tailwind.config.js` to set the selected font as the default `sans` stack.
-3. [x] **Global Effects & Spacing**
-   - [x] Standardize `border-radius` to `2xl` or `3xl` in `tailwind.config.js` and components.
-   - [x] Refine `shadow-layered` utility in `tailwind.config.js` for soft, depth-giving effects.
-   - [x] Increase base font sizes and line heights across the application for a "friendly" feel.
+This task list tracks the progress of improvements for the PDF to PDF/A-3 converter, following the implementation plan.
 
-## Phase 2: Component Overhaul & Visual Identity
-4. [x] **Iconography Update**
-   - [x] Audit all components for icon usage.
-   - [x] Replace generic icons (e.g., from `lucide-react`) with **Iconify Solar Linear Icons**.
-   - [x] Standardize brand logos using **Iconify Simple Icons** at `96x36px`.
-5. [x] **Imagery Integration**
-   - [x] Replace static or missing images with high-quality Unsplash placeholders.
-   - [x] Match the "Secure Archiving" and "FinTech" mood in Hero and feature sections.
-6. [x] **Layout & Grid Refinement**
-   - [x] Ensure generous whitespace (padding/margin) between main UI blocks.
-   - [x] Verify responsive behavior of the multi-column layout.
+## Phase 1: Backend Compliance & Robustness
 
-## Phase 3: Enhanced Interactivity & Feedback
-7. [x] **FileUpload Enhancement**
-   - [x] Improve the drag-and-drop zone's visual feedback (hover, active states).
-   - [x] Add clearer success/error animations or transitions.
-8. [x] **Preview Section Optimization**
-   - [x] Ensure PDF and XML previews are prominent and easily switchable.
-   - [x] Add loading skeletons or placeholders while previews are rendering.
-9. [x] **Status & Error Handling**
-   - [x] Standardize status displays for different application states.
-   - [x] Ensure high contrast for all feedback messages.
+### 1.1 PDF/A-3 & XMP Metadata Enhancement
+- [x] 1. Update `PdfConversionService` to include a full XMP Extension Schema for ZUGFeRD (Factur-X).
+- [x] 2. Ensure the `/AFRelationship` is correctly set to `/Source` for the embedded XML in the PDF structure.
+- [x] 3. Explicitly embed a Color Profile (e.g., sRGB IEC61966-2.1) to meet PDF/A requirements.
+- [x] 4. Integrate `VeraPDF` (or a similar validation library) into the test suite for automated compliance checking.
 
-## Phase 4: Build, Integration & Verification
-10. [x] **Backend Integration**
-    - [x] Verify Vite build output path matches `src/main/resources/static`.
-    - [x] Ensure Spring Boot correctly serves the frontend from the static resources folder.
-11. [x] **Quality Assurance**
-    - [x] Run `npm run build` and `npm run lint` in the frontend project.
-    - [x] Execute a full conversion cycle to verify UI-to-Backend communication.
-    - [x] Check accessibility (contrast, aria-labels).
-12. [x] **Documentation Update**
-    - [x] Update `prompts/requirements.md` if any new best practices are discovered during implementation.
+### 1.2 Enhanced XML Validation
+- [x] 5. Extend `XmlValidationService` to support multiple ZUGFeRD profiles (MINIMUM, BASIC, EN 16931, EXTENDED).
+- [x] 6. Implement a custom `ErrorHandler` to capture line and column numbers for all XSD validation events.
+- [x] 7. Add Schematron validation for deeper business rule checks beyond XSD (where applicable).
+
+### 1.3 Error Handling & API Resilience
+- [x] 8. Standardize the error response format across the API.
+- [x] 9. Implement a custom exception handler to catch PDFBox or JAXP errors and return meaningful JSON instead of stack traces.
+- [x] 10. Refine the Base64 encoding of validation errors in headers to ensure reliability for large error sets.
+
+## Phase 2: Frontend UI/UX Refinement
+
+### 2.1 Modernized Dashboard
+- [x] 11. Implement a "Glassmorphism" effect for the main container using Tailwind's `backdrop-blur`.
+- [x] 12. Enhance the `Hero` section with animated SVG icons from the Solar Icon set.
+- [x] 13. Add a "Recent Conversions" list (stored in local storage) for quick access to previously processed files.
+
+### 2.2 Advanced XML Visualization
+- [x] 14. Create a dedicated `ZUGFeRDDataViewer` component for structured data presentation.
+- [x] 15. Implement syntax highlighting for the XML preview (using `prismjs` or a lightweight alternative).
+- [x] 16. Build a "Summary Card" that extracts and displays key invoice data (ID, Date, Total, Currency, Vendor).
+
+### 2.3 Interactive Validation Feedback
+- [x] 17. Make validation errors in `StatusDisplay` "clickable" to highlight the corresponding line in the XML preview.
+- [x] 18. Add color-coded badges for error severity (e.g., Red for Errors, Amber for Warnings).
+
+## Phase 3: Infrastructure & Quality Assurance
+
+### 3.1 Frontend Build Optimization
+- [x] 19. Fine-tune Vite's build options for better code splitting and chunking.
+- [x] 20. Verify that all assets (fonts, icons) are correctly processed and served by the Spring Boot backend.
+- [x] 21. Ensure Tailwind 4's JIT compiler is correctly picking up all dynamic classes.
+
+### 3.2 Automated Testing & CI
+- [x] 22. Add comprehensive unit tests for the `zugferdParser` utility.
+- [x] 23. Implement an integration test for the full "Upload -> Convert -> Download" lifecycle.
+- [x] 24. Set up a sample suite of valid/invalid PDF and XML files in `src/test/resources` for regression testing.

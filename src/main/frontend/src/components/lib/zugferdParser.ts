@@ -1,4 +1,38 @@
-export function parseZUGFeRD(xmlText: string) {
+export interface ZUGFeRDData {
+  header: {
+    id: string;
+    date: string;
+    totalAmount: number;
+    currency: string;
+    sellerName: string;
+  };
+  summary: {
+    invoiceNumber: string | null;
+    issueDate: string | null;
+    currencyCode: string | null;
+  };
+  seller: {
+    name: string | null;
+    vatId: string | null;
+    address: string | null;
+  } | null;
+  buyer: {
+    name: string | null;
+    vatId: string | null;
+    address: string | null;
+  } | null;
+  lineItems: Array<{
+    description: string | null;
+    quantity: string | null;
+    unitPrice: string | null;
+  }>;
+  totals: {
+    totalAmount: string | null;
+    taxAmount: string | null;
+  };
+}
+
+export function parseZUGFeRD(xmlText: string): ZUGFeRDData {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlText, "text/xml");
 
@@ -7,7 +41,6 @@ export function parseZUGFeRD(xmlText: string) {
     const el = parent.getElementsByTagName(tagName)[0];
     return el ? el.textContent : null;
   };
-
 
   // Extract Invoice Summary
   const invoiceNumber = getText(xmlDoc, "ram:ID") || getText(xmlDoc, "ID");
@@ -20,7 +53,7 @@ export function parseZUGFeRD(xmlText: string) {
     if (!party) return null;
     return {
       name: getText(party, "ram:Name") || getText(party, "Name"),
-      vatId: getText(party, "ram:ID") || getText(party, "ID"), // This might be wrong for VAT, but a placeholder
+      vatId: getText(party, "ram:ID") || getText(party, "ID"),
       address: getText(party, "ram:LineOne") || getText(party, "LineOne"),
     };
   };
@@ -29,7 +62,7 @@ export function parseZUGFeRD(xmlText: string) {
   const buyer = getPartyInfo("ram:BuyerTradeParty") || getPartyInfo("BuyerTradeParty");
 
   // Extract Line Items
-  const lineItems: any[] = [];
+  const lineItems: ZUGFeRDData['lineItems'] = [];
   const items = xmlDoc.getElementsByTagName("ram:IncludedSupplyChainTradeLineItem");
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
@@ -41,14 +74,23 @@ export function parseZUGFeRD(xmlText: string) {
   }
 
   // Extract Totals
-  const totalAmount = getText(xmlDoc, "ram:GrandTotalAmount") || getText(xmlDoc, "GrandTotalAmount");
-  const taxAmount = getText(xmlDoc, "ram:TaxTotalAmount") || getText(xmlDoc, "TaxTotalAmount");
+  const totalAmountStr = getText(xmlDoc, "ram:GrandTotalAmount") || getText(xmlDoc, "GrandTotalAmount");
+  const taxAmountStr = getText(xmlDoc, "ram:TaxTotalAmount") || getText(xmlDoc, "TaxTotalAmount");
+
+  const totalAmount = parseFloat(totalAmountStr || "0");
 
   return {
+    header: {
+      id: invoiceNumber || 'N/A',
+      date: issueDate || 'N/A',
+      totalAmount: totalAmount,
+      currency: currencyCode || 'EUR',
+      sellerName: seller?.name || 'N/A'
+    },
     summary: { invoiceNumber, issueDate, currencyCode },
     seller,
     buyer,
     lineItems,
-    totals: { totalAmount, taxAmount }
+    totals: { totalAmount: totalAmountStr, taxAmount: taxAmountStr }
   };
 }
