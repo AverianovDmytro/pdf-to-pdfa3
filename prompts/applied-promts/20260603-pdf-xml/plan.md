@@ -6,7 +6,7 @@ This document outlines the detailed steps required to implement the ZUGFeRD-comp
 
 ### 1.1 Model & Persistence
 - **Task**: Update `Conversion` entity to track the XML file.
-- **Action**: Add `xml_filename` and `xml_size` fields to `com.vcapelcin.pdftopdfa3.model.Conversion`.
+- **Action**: Add `xml_filename` and `xml_size` fields to `com.vcapelcin.pdf2zugferd.model.Conversion`.
 - **Action**: Create a Flyway/Liquibase migration or let JPA update the schema (depending on environment).
 
 ### 1.2 Service Layer (`PdfConversionService.java`)

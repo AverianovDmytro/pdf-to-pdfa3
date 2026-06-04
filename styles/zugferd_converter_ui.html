@@ -1,0 +1,644 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+.zu-root {
+  font-family: 'Syne', sans-serif;
+  background: var(--color-background-primary);
+  min-height: 100vh;
+  padding: 2rem 1.5rem 3rem;
+  color: var(--color-text-primary);
+}
+
+.zu-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 2.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+
+.zu-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zu-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.zu-logo-mark {
+  width: 36px;
+  height: 36px;
+  background: var(--color-text-primary);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zu-logo-mark svg { width: 20px; height: 20px; }
+
+.zu-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--color-text-primary);
+}
+
+.zu-subtitle {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  margin-top: 4px;
+}
+
+.zu-badge {
+  background: var(--color-background-success);
+  color: var(--color-text-success);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.zu-main {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.zu-left { display: flex; flex-direction: column; gap: 1rem; }
+.zu-right { display: flex; flex-direction: column; gap: 1rem; }
+
+.zu-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  margin-bottom: 0.75rem;
+}
+
+.drop-zone {
+  border: 1.5px dashed var(--color-border-secondary);
+  border-radius: 16px;
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--color-background-secondary);
+  min-height: 160px;
+  position: relative;
+  overflow: hidden;
+}
+
+.drop-zone:hover {
+  border-color: var(--color-text-secondary);
+  background: var(--color-background-tertiary);
+}
+
+.drop-zone.has-file {
+  border-style: solid;
+  border-color: var(--color-border-success);
+  background: var(--color-background-success);
+}
+
+.drop-zone.has-file .dz-icon { color: var(--color-text-success); }
+.drop-zone.has-file .dz-text { color: var(--color-text-success); }
+.drop-zone.has-file .dz-sub { color: var(--color-text-success); opacity: 0.7; }
+
+.dz-num {
+  position: absolute;
+  top: 14px;
+  left: 18px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--color-text-tertiary);
+  font-family: 'DM Mono', monospace;
+}
+
+.dz-icon { font-size: 40px; color: var(--color-text-tertiary); }
+
+.dz-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  text-align: center;
+}
+
+.dz-sub {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.dz-filename {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--color-text-success);
+  font-weight: 500;
+  display: none;
+}
+
+.drop-zone.has-file .dz-filename { display: block; }
+.drop-zone.has-file .dz-default { display: none; }
+
+.dz-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  background: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+}
+
+.drop-zone.has-file .dz-tag {
+  background: rgba(0,0,0,0.08);
+  color: var(--color-text-success);
+}
+
+.btn-generate {
+  width: 100%;
+  padding: 1.2rem 2rem;
+  border-radius: 14px;
+  border: none;
+  font-family: 'Syne', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.18s;
+  background: var(--color-text-primary);
+  color: var(--color-background-primary);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-generate:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn-generate:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.btn-generate:not(:disabled):active {
+  transform: translateY(0) scale(0.99);
+}
+
+.btn-generate i { font-size: 20px; }
+
+.btn-generate .btn-sub {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.6;
+  display: block;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+.btn-generate .btn-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 3px;
+  background: var(--color-border-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+  display: none;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--color-text-primary);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.progress-bar.active { display: block; }
+
+.sidebar-card {
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+  padding: 1.25rem;
+}
+
+.activity-list { display: flex; flex-direction: column; gap: 2px; }
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.activity-item:hover { background: var(--color-background-secondary); }
+
+.act-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.act-dot.success { background: #22c55e; }
+.act-dot.error { background: #ef4444; }
+
+.act-info { flex: 1; min-width: 0; }
+
+.act-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.act-time {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: 'DM Mono', monospace;
+  margin-top: 1px;
+}
+
+.act-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.act-status.success {
+  background: var(--color-background-success);
+  color: var(--color-text-success);
+}
+
+.preview-box {
+  background: var(--color-background-secondary);
+  border-radius: 12px;
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0.5px solid var(--color-border-tertiary);
+}
+
+.preview-box i {
+  font-size: 36px;
+  color: var(--color-text-tertiary);
+}
+
+.preview-box p {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+.preview-box.has-preview {
+  background: var(--color-background-success);
+  border-color: var(--color-border-success);
+}
+
+.preview-box.has-preview i { color: var(--color-text-success); }
+.preview-box.has-preview p { color: var(--color-text-success); }
+
+.spec-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+  font-size: 12px;
+}
+
+.spec-row:last-child { border-bottom: none; }
+
+.spec-key {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.spec-val {
+  font-weight: 600;
+  font-family: 'DM Mono', monospace;
+  color: var(--color-text-primary);
+  font-size: 11px;
+}
+
+.spec-val.ok { color: var(--color-text-success); }
+
+.zu-footer {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 0.5px solid var(--color-border-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.zu-footer-links { display: flex; gap: 1.5rem; }
+.zu-footer-links a {
+  color: var(--color-text-tertiary);
+  text-decoration: none;
+  font-weight: 500;
+}
+.zu-footer-links a:hover { color: var(--color-text-secondary); }
+
+.status-msg {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.status-msg.show { display: flex; }
+.status-msg.success {
+  background: var(--color-background-success);
+  color: var(--color-text-success);
+}
+.status-msg.error {
+  background: var(--color-background-danger);
+  color: var(--color-text-danger);
+}
+</style>
+
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">ZUGFeRD PDF/A-3 conversion interface with file upload zones and recent activity log</h2>
+
+<div class="zu-root">
+
+  <div class="zu-header">
+    <div class="zu-brand">
+      <div class="zu-logo">
+        <div class="zu-logo-mark">
+          <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="2" width="9" height="12" rx="1.5" fill="white" opacity="0.9"/>
+            <rect x="7" y="8" width="9" height="10" rx="1.5" fill="white" opacity="0.55"/>
+            <path d="M10 5h4M10 8h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.3"/>
+          </svg>
+        </div>
+        <div>
+          <div class="zu-title">ZUGFeRD Converter</div>
+          <div class="zu-subtitle">PDF/A-3 · ISO 19005-3 · Factur-X 2.2</div>
+        </div>
+      </div>
+    </div>
+    <div class="zu-badge">
+      <i class="ti ti-shield-check" style="font-size:13px;" aria-hidden="true"></i>
+      GDPR Compliant
+    </div>
+  </div>
+
+  <div class="zu-main">
+    <div class="zu-left">
+
+      <div class="zu-section-label">Document processing</div>
+
+      <div class="drop-zone" id="dz-pdf" onclick="triggerInput('pdf-input')">
+        <span class="dz-num">01</span>
+        <i class="ti ti-file-type-pdf dz-icon" aria-hidden="true"></i>
+        <div class="dz-default">
+          <div class="dz-text">Drop your source PDF here</div>
+          <div class="dz-sub">Standard invoice PDF · any version</div>
+          <div class="dz-tag">.pdf</div>
+        </div>
+        <div class="dz-filename" id="pdf-name">—</div>
+        <div class="dz-text" id="pdf-ready" style="display:none;">PDF ready</div>
+      </div>
+
+      <div class="drop-zone" id="dz-xml" onclick="triggerInput('xml-input')">
+        <span class="dz-num">02</span>
+        <i class="ti ti-code dz-icon" aria-hidden="true"></i>
+        <div class="dz-default">
+          <div class="dz-text">Upload ZUGFeRD XML data</div>
+          <div class="dz-sub">Factur-X / ZUGFeRD structured data</div>
+          <div class="dz-tag">.xml</div>
+        </div>
+        <div class="dz-filename" id="xml-name">—</div>
+        <div class="dz-text" id="xml-ready" style="display:none;">XML ready</div>
+      </div>
+
+      <input type="file" id="pdf-input" accept=".pdf" style="display:none;" onchange="handleFile(this,'pdf')">
+      <input type="file" id="xml-input" accept=".xml" style="display:none;" onchange="handleFile(this,'xml')">
+
+      <div class="progress-bar" id="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+
+      <div class="status-msg" id="status-msg">
+        <i class="ti ti-check" aria-hidden="true"></i>
+        <span id="status-text"></span>
+      </div>
+
+      <button class="btn-generate" id="btn-gen" disabled onclick="runConvert()">
+        <i class="ti ti-bolt" aria-hidden="true"></i>
+        <div class="btn-inner">
+          <span>Generate PDF/A-3</span>
+          <span class="btn-sub">ZUGFeRD 2.2 · Compliant archive</span>
+        </div>
+      </button>
+
+    </div>
+
+    <div class="zu-right">
+
+      <div class="sidebar-card">
+        <div class="zu-section-label">Compliance spec</div>
+        <div class="spec-row">
+          <span class="spec-key">Standard</span>
+          <span class="spec-val ok">ISO 19005-3</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-key">Profile</span>
+          <span class="spec-val ok">PDF/A-3b</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-key">ZUGFeRD</span>
+          <span class="spec-val ok">v2.2 EN16931</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-key">Attachment</span>
+          <span class="spec-val">factur-x.xml</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-key">Conformance</span>
+          <span class="spec-val ok">XRECHNUNG</span>
+        </div>
+      </div>
+
+      <div class="sidebar-card">
+        <div class="zu-section-label">Preview</div>
+        <div class="preview-box" id="preview-box">
+          <i class="ti ti-file-unknown" aria-hidden="true"></i>
+          <p>No document selected</p>
+        </div>
+      </div>
+
+      <div class="sidebar-card">
+        <div class="zu-section-label">Recent activity</div>
+        <div class="activity-list" id="activity-list">
+          <div class="activity-item">
+            <div class="act-dot success"></div>
+            <div class="act-info">
+              <div class="act-name">Invoice-test.pdf</div>
+              <div class="act-time">4.6.2026, 14:18:52</div>
+            </div>
+            <div class="act-status success">success</div>
+          </div>
+          <div class="activity-item">
+            <div class="act-dot success"></div>
+            <div class="act-info">
+              <div class="act-name">Invoice-test.pdf</div>
+              <div class="act-time">4.6.2026, 13:52:54</div>
+            </div>
+            <div class="act-status success">success</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="zu-footer">
+    <span>© 2026 AS-Soft Business Solutions</span>
+    <div class="zu-footer-links">
+      <a href="#">GDPR Compliant</a>
+      <a href="#">Terms of Service</a>
+      <a href="#">Support</a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let state = { pdf: false, xml: false, converting: false };
+
+function triggerInput(id) {
+  if (state.converting) return;
+  document.getElementById(id).click();
+}
+
+function handleFile(input, type) {
+  if (!input.files.length) return;
+  const file = input.files[0];
+  const dzId = type === 'pdf' ? 'dz-pdf' : 'dz-xml';
+  const nameId = type === 'pdf' ? 'pdf-name' : 'xml-name';
+  const readyId = type === 'pdf' ? 'pdf-ready' : 'xml-ready';
+  const dz = document.getElementById(dzId);
+  dz.classList.add('has-file');
+  document.getElementById(nameId).textContent = file.name;
+  document.getElementById(readyId).style.display = 'block';
+  state[type] = true;
+  updatePreview(type, file.name);
+  checkReady();
+}
+
+function updatePreview(type, name) {
+  const pb = document.getElementById('preview-box');
+  if (type === 'pdf') {
+    pb.classList.add('has-preview');
+    pb.innerHTML = '<i class="ti ti-file-check" aria-hidden="true"></i><p>' + name + '</p>';
+  }
+}
+
+function checkReady() {
+  const btn = document.getElementById('btn-gen');
+  btn.disabled = !(state.pdf && state.xml);
+}
+
+function runConvert() {
+  if (state.converting || !state.pdf || !state.xml) return;
+  state.converting = true;
+  document.getElementById('btn-gen').disabled = true;
+  document.getElementById('btn-gen').innerHTML = '<i class="ti ti-loader-2" aria-hidden="true" style="animation:spin 1s linear infinite"></i><div class="btn-inner"><span>Processing…</span><span class="btn-sub">Embedding XML · Validating</span></div>';
+
+  const pb = document.getElementById('progress-bar');
+  const pf = document.getElementById('progress-fill');
+  pb.classList.add('active');
+  let prog = 0;
+  const iv = setInterval(() => {
+    prog = Math.min(prog + (Math.random() * 18), 90);
+    pf.style.width = prog + '%';
+  }, 280);
+
+  setTimeout(() => {
+    clearInterval(iv);
+    pf.style.width = '100%';
+    setTimeout(() => {
+      pb.classList.remove('active');
+      pf.style.width = '0%';
+      showSuccess();
+      addActivity();
+      state.converting = false;
+      document.getElementById('btn-gen').innerHTML = '<i class="ti ti-bolt" aria-hidden="true"></i><div class="btn-inner"><span>Generate PDF/A-3</span><span class="btn-sub">ZUGFeRD 2.2 · Compliant archive</span></div>';
+      document.getElementById('btn-gen').disabled = false;
+    }, 350);
+  }, 2800);
+}
+
+function showSuccess() {
+  const msg = document.getElementById('status-msg');
+  msg.className = 'status-msg show success';
+  document.getElementById('status-text').textContent = 'PDF/A-3 generated — ready to download';
+  setTimeout(() => { msg.classList.remove('show'); }, 5000);
+}
+
+function addActivity() {
+  const list = document.getElementById('activity-list');
+  const now = new Date();
+  const ts = now.toLocaleDateString('de-DE') + ', ' + now.toLocaleTimeString('de-DE');
+  const nameEl = document.getElementById('pdf-name');
+  const fname = nameEl ? nameEl.textContent : 'document.pdf';
+  const item = document.createElement('div');
+  item.className = 'activity-item';
+  item.innerHTML = '<div class="act-dot success"></div><div class="act-info"><div class="act-name">' + fname + '</div><div class="act-time">' + ts + '</div></div><div class="act-status success">success</div>';
+  list.insertBefore(item, list.firstChild);
+}
+</script>
+
+<style>
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
