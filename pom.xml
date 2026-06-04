@@ -72,19 +72,10 @@
             <version>10.10.0</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.pdfbox</groupId>
-            <artifactId>pdfbox</artifactId>
-            <version>${pdfbox.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.pdfbox</groupId>
-            <artifactId>preflight</artifactId>
-            <version>${pdfbox.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.pdfbox</groupId>
-            <artifactId>xmpbox</artifactId>
-            <version>${pdfbox.version}</version>
+            <groupId>org.mustangproject</groupId>
+            <artifactId>validator</artifactId>
+            <version>2.23.1</version>
+            <classifier>shaded</classifier>
         </dependency>
         <dependency>
             <groupId>org.mapstruct</groupId>

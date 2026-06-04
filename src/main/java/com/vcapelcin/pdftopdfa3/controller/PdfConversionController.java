@@ -36,8 +36,8 @@ public class PdfConversionController {
         this.bucket = bucket;
     }
 
-    @PostMapping(value = "/convert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    ResponseEntity<byte[]> convertPdf(
+    @PostMapping(value = "/convert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = {MediaType.APPLICATION_PDF_VALUE, MediaType.APPLICATION_JSON_VALUE})
+    ResponseEntity<?> convertPdf(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "xmlFile", required = false) MultipartFile xmlFile,
             @RequestParam(value = "profile", defaultValue = "BASIC") String profile,
@@ -52,7 +52,11 @@ public class PdfConversionController {
                 ipAddress);
         if (!bucket.tryConsume(1)) {
             log.warn("Rate limit exceeded for file: {}", file.getOriginalFilename());
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Rate limit exceeded. Please try again later.");
+            error.put("status", HttpStatus.TOO_MANY_REQUESTS.value());
+            error.put("timestamp", System.currentTimeMillis());
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(error);
         }
         if (file.isEmpty()) {
             log.error("Received empty file");
@@ -61,7 +65,7 @@ public class PdfConversionController {
 
         List<XmlValidationService.ValidationError> xmlErrors = null;
         if (xmlFile != null && !xmlFile.isEmpty()) {
-            xmlErrors = xmlValidationService.validateXmlDetailed(xmlFile.getBytes());
+            xmlErrors = xmlValidationService.validateXmlDetailed(xmlFile.getBytes(), profile);
             if (!xmlErrors.isEmpty()) {
                 log.warn("XML Validation failed for file: {}. Errors: {}", xmlFile.getOriginalFilename(), xmlErrors.size());
             }

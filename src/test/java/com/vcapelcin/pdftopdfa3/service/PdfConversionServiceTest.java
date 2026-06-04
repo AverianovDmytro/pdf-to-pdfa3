@@ -1,8 +1,6 @@
 package com.vcapelcin.pdftopdfa3.service;
 
 import com.vcapelcin.pdftopdfa3.repository.ConversionRepository;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -10,6 +8,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -25,13 +24,7 @@ class PdfConversionServiceTest {
 
     @Test
     void testConversionPersistence() throws Exception {
-        byte[] pdfContent;
-        try (PDDocument document = new PDDocument()) {
-            document.addPage(new PDPage());
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            document.save(baos);
-            pdfContent = baos.toByteArray();
-        }
+        byte[] pdfContent = "%PDF-1.7\n%\n1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n2 0 obj\n<</Type/Pages/Count 1/Kids[3 0 R]>>\nendobj\n3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<<>>>>\nendobj\nxref\n0 4\n0000000000 65535 f \n0000000015 00000 n \n0000000060 00000 n \n0000000111 00000 n \ntrailer\n<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF".getBytes();
         MockMultipartFile file = new MockMultipartFile("file", "persistence_test.pdf", "application/pdf", pdfContent);
 
         long beforeCount = conversionRepository.count();
@@ -69,24 +62,10 @@ class PdfConversionServiceTest {
 
     @Test
     void testIsPdfFileWithValidPdf() throws Exception {
-        byte[] pdfContent;
-        try (PDDocument document = new PDDocument()) {
-            document.addPage(new PDPage());
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            document.save(baos);
-            pdfContent = baos.toByteArray();
-        }
+        byte[] pdfContent = "%PDF-1.7\n%\n1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n2 0 obj\n<</Type/Pages/Count 1/Kids[3 0 R]>>\nendobj\n3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<<>>>>\nendobj\nxref\n0 4\n0000000000 65535 f \n0000000015 00000 n \n0000000060 00000 n \n0000000111 00000 n \ntrailer\n<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF".getBytes();
         MockMultipartFile file = new MockMultipartFile("file", "test.pdf", "application/pdf", pdfContent);
         
-        try {
-            assertDoesNotThrow(() -> pdfConversionService.convertToPdfA3(file, null));
-        } catch (Throwable e) {
-            if (e.getCause() instanceof IllegalArgumentException && e.getCause().getMessage().contains("Invalid ICC Profile Data")) {
-                // Ignore ICC profile issue in some environments
-                return;
-            }
-            throw e;
-        }
+        assertDoesNotThrow(() -> pdfConversionService.convertToPdfA3(file, null));
     }
 
     @Test
@@ -111,20 +90,14 @@ class PdfConversionServiceTest {
 
     @Test
     void testConversionWithXmlEmbedding() throws Exception {
-        byte[] pdfContent;
-        try (PDDocument document = new PDDocument()) {
-            document.addPage(new PDPage());
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            document.save(baos);
-            pdfContent = baos.toByteArray();
-        }
+        byte[] pdfContent = "%PDF-1.7\n%\n1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n2 0 obj\n<</Type/Pages/Count 1/Kids[3 0 R]>>\nendobj\n3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<<>>>>\nendobj\nxref\n0 4\n0000000000 65535 f \n0000000015 00000 n \n0000000060 00000 n \n0000000111 00000 n \ntrailer\n<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF".getBytes();
         MockMultipartFile file = new MockMultipartFile("file", "test.pdf", "application/pdf", pdfContent);
         
-        // Use a simple XML that fails XSD validation.
-        byte[] xmlContent = "<invalid>xml</invalid>".getBytes();
-        MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "zugferd.xml", "text/xml", xmlContent);
+        // Use a minimal valid ZUGFeRD XML
+        byte[] xmlContent = "<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\"></rsm:CrossIndustryInvoice>".getBytes();
+        MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "factur-x.xml", "text/xml", xmlContent);
 
-        // It should NOT throw an exception now because we ignore XML validation failures during conversion
+        // It should NOT throw an exception now
         assertDoesNotThrow(() -> pdfConversionService.convertToPdfA3(file, xmlFile));
         
         var conversions = conversionRepository.findAll();

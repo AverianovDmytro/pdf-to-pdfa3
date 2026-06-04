@@ -4,32 +4,10 @@ import com.vcapelcin.pdftopdfa3.model.Conversion;
 import com.vcapelcin.pdftopdfa3.repository.ConversionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDDocumentInformation;
-import org.apache.pdfbox.pdmodel.common.PDMetadata;
-import org.apache.pdfbox.pdmodel.graphics.color.PDOutputIntent;
-import org.apache.xmpbox.XMPMetadata;
-import org.apache.xmpbox.schema.AdobePDFSchema;
-import org.apache.xmpbox.schema.DublinCoreSchema;
-import org.apache.xmpbox.schema.PDFAIdentificationSchema;
-import org.apache.xmpbox.schema.XMPBasicSchema;
-import org.apache.xmpbox.xml.XmpSerializer;
-import org.apache.pdfbox.cos.COSName;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDResources;
-import org.apache.pdfbox.pdmodel.font.PDFont;
-import org.apache.pdfbox.pdmodel.font.PDType0Font;
-import org.apache.pdfbox.preflight.ValidationResult;
-import org.apache.pdfbox.preflight.parser.PreflightParser;
-import org.apache.pdfbox.cos.COSDictionary;
-import org.apache.pdfbox.pdmodel.PDDocumentCatalog;
-import org.apache.pdfbox.pdmodel.common.filespecification.PDComplexFileSpecification;
-import org.apache.pdfbox.pdmodel.common.filespecification.PDEmbeddedFile;
-import org.apache.xmpbox.schema.XMPSchema;
-import org.apache.xmpbox.type.AbstractStructuredType;
-import org.apache.xmpbox.type.StructuredType;
-import org.springframework.beans.factory.annotation.Value;
+import org.mustangproject.ZUGFeRD.IZUGFeRDExporter;
+import org.mustangproject.ZUGFeRD.ZUGFeRDExporterFromA1;
+import org.mustangproject.validator.ZUGFeRDValidator;
+import org.mustangproject.ZUGFeRD.Profiles;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.scheduling.annotation.Async;
 import java.util.concurrent.CompletableFuture;
@@ -42,10 +20,8 @@ import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Calendar;
 
 @Service
 @Slf4j
@@ -53,9 +29,6 @@ public class PdfConversionService {
 
     private final ConversionRepository conversionRepository;
     private final ResourceLoader resourceLoader;
-
-    @Value("${app.font-directory:src/main/resources/fonts}")
-    private String fontDirectory;
 
     public PdfConversionService(ConversionRepository conversionRepository, ResourceLoader resourceLoader) {
         this.conversionRepository = conversionRepository;
@@ -108,39 +81,50 @@ public class PdfConversionService {
             }
         }
 
-        try (InputStream is = file.getInputStream()) {
-            byte[] fileBytes = is.readAllBytes();
-            conversion.setOriginalSize((long) fileBytes.length);
-            log.debug("Read {} bytes from file: {}", fileBytes.length, originalFilename);
+        try (InputStream pdfSource = file.getInputStream();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            
+            conversion.setOriginalSize(file.getSize());
             
             String targetFilename = (originalFilename != null ? originalFilename.replace(".pdf", "") : "converted") + "_a3.pdf";
             conversion.setTargetFilename(targetFilename);
 
-        try (PDDocument document = Loader.loadPDF(fileBytes)) {
-                embedFonts(document);
-                
-                String embeddedXmlFilename = null;
-                if (xmlFile != null && !xmlFile.isEmpty()) {
-                    // Use standard ZUGFeRD 2.x / Factur-X filename
-                    embeddedXmlFilename = "factur-x.xml";
-                    embedZugferdXml(document, xmlFile.getBytes(), embeddedXmlFilename);
-                }
+            IZUGFeRDExporter exporter = new ZUGFeRDExporterFromA1();
+            
+            // Ignore PDFA errors to allow regular PDF input
+            ((ZUGFeRDExporterFromA1)exporter).ignorePDFAErrors();
 
-                makePdfA3(document, embeddedXmlFilename, zugferdConformanceLevel);
+            // Load source PDF
+            exporter.load(pdfSource);
 
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                document.save(baos, org.apache.pdfbox.pdfwriter.compress.CompressParameters.NO_COMPRESSION);
-                byte[] convertedBytes = baos.toByteArray();
-                
-                validatePdfA3(convertedBytes);
-                
-                log.debug("Successfully created PDF/A-3 document, size: {} bytes", convertedBytes.length);
-                
-                conversion.setConvertedSize((long) convertedBytes.length);
-                updateConversionStatus(conversion, "COMPLETED", null, startTime);
-                
-                return convertedBytes;
+            // Configure conformance level
+            exporter.setProfile(Profiles.getByName(zugferdConformanceLevel));
+            
+            if (xmlFile != null && !xmlFile.isEmpty()) {
+                exporter.setXML(xmlFile.getBytes());
+            } else {
+                // If no XML is provided, we still need to provide a minimum valid ZUGFeRD XML 
+                // because Mustangproject's export() requires it.
+                // However, our service is also used for general PDF/A-3 conversion.
+                // If the user didn't provide XML, we can either:
+                // 1. Skip ZUGFeRD metadata (not possible with this exporter)
+                // 2. Provide a dummy minimal XML.
+                byte[] dummyXml = ("<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\"></rsm:CrossIndustryInvoice>").getBytes();
+                exporter.setXML(dummyXml);
             }
+            
+            // Export to PDF/A-3
+            exporter.export(out);
+            byte[] convertedBytes = out.toByteArray();
+            
+            validatePdfA3(convertedBytes);
+            
+            log.debug("Successfully created PDF/A-3 document, size: {} bytes", convertedBytes.length);
+            
+            conversion.setConvertedSize((long) convertedBytes.length);
+            updateConversionStatus(conversion, "COMPLETED", null, startTime);
+            
+            return convertedBytes;
         } catch (IOException e) {
             log.error("IOException during PDF conversion for file: {}", originalFilename, e);
             updateConversionStatus(conversion, "FAILED", e.getMessage(), startTime);
@@ -173,193 +157,25 @@ public class PdfConversionService {
         log.info("XML Validation against XSD successful.");
     }
 
-    public void validatePdfA3(byte[] pdfBytes) throws IOException {
-        java.io.File tempFile = java.io.File.createTempFile("pdfa-validation", ".pdf");
+    public void validatePdfA3(byte[] pdfBytes) {
         try {
-            java.nio.file.Files.write(tempFile.toPath(), pdfBytes);
-            ValidationResult result = PreflightParser.validate(tempFile);
-            if (result != null && !result.isValid()) {
-                log.warn("PDF/A-3 Validation failed for document:");
-                for (ValidationResult.ValidationError error : result.getErrorsList()) {
-                    log.warn("  Validation Error: {} : {}", error.getErrorCode(), error.getDetails());
+            ZUGFeRDValidator validator = new ZUGFeRDValidator();
+            // Need to write to temp file as ZUGFeRDValidator.validate(String) expects a filename
+            java.io.File tempFile = java.io.File.createTempFile("pdfa-validation", ".pdf");
+            try {
+                java.nio.file.Files.write(tempFile.toPath(), pdfBytes);
+                String report = validator.validate(tempFile.getAbsolutePath());
+                if (report.contains("invalid") || report.contains("error")) {
+                    log.warn("PDF/A-3 Validation potential issues for document: {}", report);
+                } else {
+                    log.info("PDF/A-3 Validation report: {}", report);
                 }
-            } else if (result != null) {
-                log.info("PDF/A-3 Validation successful.");
+            } finally {
+                tempFile.delete();
             }
         } catch (Exception e) {
             log.error("Error during PDF/A-3 validation", e);
-        } finally {
-            tempFile.delete();
         }
-    }
-
-    private void embedFonts(PDDocument document) throws IOException {
-        for (PDPage page : document.getPages()) {
-            PDResources resources = page.getResources();
-            if (resources != null) {
-                for (COSName fontName : resources.getFontNames()) {
-                    PDFont font = resources.getFont(fontName);
-                    if (font != null && !font.isEmbedded()) {
-                        log.debug("Font not embedded: {}. Attempting to embed.", font.getName());
-                        try {
-                            // Try to find the font in the configured font directory
-                            String ttfFilename = font.getName().replace("+", "") + ".ttf";
-                            File fontFile = new File(fontDirectory, ttfFilename);
-                            if (fontFile.exists()) {
-                                PDType0Font.load(document, fontFile);
-                                log.info("Successfully embedded font: {}", font.getName());
-                            } else {
-                                log.warn("Font file not found in directory: {}", fontFile.getAbsolutePath());
-                            }
-                        } catch (Exception e) {
-                            log.error("Failed to embed font: {}", font.getName(), e);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private void embedZugferdXml(PDDocument document, byte[] xmlBytes, String filename) throws IOException {
-        log.debug("Embedding ZUGFeRD XML: {}", filename);
-        
-        PDEmbeddedFile embeddedFile = new PDEmbeddedFile(document, new java.io.ByteArrayInputStream(xmlBytes));
-        embeddedFile.setSubtype("text/xml");
-        embeddedFile.setSize(xmlBytes.length);
-        embeddedFile.setCreationDate(Calendar.getInstance());
-        embeddedFile.setModDate(Calendar.getInstance());
-
-        PDComplexFileSpecification fileSpec = new PDComplexFileSpecification();
-        fileSpec.setFile(filename);
-        fileSpec.setEmbeddedFile(embeddedFile);
-        fileSpec.setEmbeddedFileUnicode(embeddedFile);
-        
-        COSDictionary dict = fileSpec.getCOSObject();
-        dict.setName(COSName.getPDFName("AFRelationship"), "Source"); // Factur-X/ZUGFeRD uses "Source" or "Data"
-
-        PDDocumentCatalog catalog = document.getDocumentCatalog();
-        COSName afName = COSName.getPDFName("AF");
-        org.apache.pdfbox.cos.COSArray afArray = (org.apache.pdfbox.cos.COSArray) catalog.getCOSObject().getDictionaryObject(afName);
-        if (afArray == null) {
-            afArray = new org.apache.pdfbox.cos.COSArray();
-            catalog.getCOSObject().setItem(afName, afArray);
-        }
-        afArray.add(fileSpec);
-
-        org.apache.pdfbox.pdmodel.PDDocumentNameDictionary names = catalog.getNames();
-        if (names == null) {
-            names = new org.apache.pdfbox.pdmodel.PDDocumentNameDictionary(catalog);
-            catalog.setNames(names);
-        }
-        org.apache.pdfbox.pdmodel.PDEmbeddedFilesNameTreeNode efTree = names.getEmbeddedFiles();
-        if (efTree == null) {
-            efTree = new org.apache.pdfbox.pdmodel.PDEmbeddedFilesNameTreeNode();
-            names.setEmbeddedFiles(efTree);
-        }
-        
-        java.util.Map<String, PDComplexFileSpecification> namesMap = new java.util.HashMap<>();
-        namesMap.put(filename, fileSpec);
-        efTree.setNames(namesMap);
-    }
-
-    private void makePdfA3(PDDocument document, String xmlFilename, String conformanceLevel) throws IOException {
-        PDDocumentInformation info = document.getDocumentInformation();
-        
-        XMPMetadata xmp = XMPMetadata.createXMPMetadata();
-        
-        if (xmlFilename != null) {
-            try {
-                // Add ZUGFeRD extension schema
-                // Using Factur-X / ZUGFeRD 2.x namespace
-                String namespace = "urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#";
-                XMPSchema zugferdSchema = new XMPSchema(xmp, namespace, "fx", "Factur-X PDFA Extension Schema");
-                zugferdSchema.setTextPropertyValue("ConformanceLevel", conformanceLevel != null ? conformanceLevel : "BASIC");
-                zugferdSchema.setTextPropertyValue("DocumentFileName", xmlFilename);
-                zugferdSchema.setTextPropertyValue("DocumentType", "INVOICE");
-                zugferdSchema.setTextPropertyValue("Version", "1.0");
-                xmp.addSchema(zugferdSchema);
-            } catch (Exception e) {
-                log.warn("Failed to add ZUGFeRD extension schema to XMP metadata", e);
-            }
-        }
-
-        PDFAIdentificationSchema id = xmp.createAndAddPDFAIdentificationSchema();
-        try {
-            id.setPart(3);
-            id.setConformance("B");
-        } catch (Exception e) {
-            throw new IOException("Failed to set PDFA identification schema", e);
-        }
-
-        XMPBasicSchema basic = xmp.createAndAddXMPBasicSchema();
-        Calendar cal = Calendar.getInstance();
-        basic.setCreateDate(cal);
-        basic.setModifyDate(cal);
-        if (info.getCreator() != null) {
-            basic.setCreatorTool(info.getCreator());
-        }
-
-        AdobePDFSchema pdf = xmp.createAndAddAdobePDFSchema();
-        if (info.getProducer() != null) {
-            pdf.setProducer(info.getProducer());
-        }
-        pdf.setPDFVersion("1.7");
-
-        DublinCoreSchema dc = xmp.createAndAddDublinCoreSchema();
-        if (info.getTitle() != null) {
-            dc.setTitle(info.getTitle());
-        }
-        if (info.getAuthor() != null) {
-            dc.addCreator(info.getAuthor());
-        }
-        if (info.getSubject() != null) {
-            dc.setDescription(info.getSubject());
-        }
-
-        XmpSerializer serializer = new XmpSerializer();
-        ByteArrayOutputStream xmpOutputStream = new ByteArrayOutputStream();
-        try {
-            serializer.serialize(xmp, xmpOutputStream, true);
-        } catch (Exception e) {
-            throw new IOException("Failed to serialize XMP metadata", e);
-        }
-
-        PDMetadata metadata = new PDMetadata(document);
-        metadata.importXMPMetadata(xmpOutputStream.toByteArray());
-        document.getDocumentCatalog().setMetadata(metadata);
-
-        // Set output intent
-        String profilePath = "/sRGB.icc";
-        try (InputStream colorProfile = getClass().getResourceAsStream(profilePath)) {
-            if (colorProfile != null) {
-                PDOutputIntent intent = new PDOutputIntent(document, colorProfile);
-                intent.setInfo("sRGB IEC61966-2.1");
-                intent.setOutputCondition("sRGB IEC61966-2.1");
-                intent.setOutputConditionIdentifier("sRGB IEC61966-2.1");
-                intent.setRegistryName("http://www.color.org");
-                document.getDocumentCatalog().addOutputIntent(intent);
-                log.debug("Successfully added sRGB output intent");
-            } else {
-                log.warn("ICC profile not found at {}", profilePath);
-                // Try fallback to classpath resource loader if getResourceAsStream fails
-                try (InputStream fallbackProfile = resourceLoader.getResource("classpath:sRGB.icc").getInputStream()) {
-                    if (fallbackProfile != null) {
-                        PDOutputIntent intent = new PDOutputIntent(document, fallbackProfile);
-                        intent.setInfo("sRGB IEC61966-2.1");
-                        intent.setOutputCondition("sRGB IEC61966-2.1");
-                        intent.setOutputConditionIdentifier("sRGB IEC61966-2.1");
-                        intent.setRegistryName("http://www.color.org");
-                        document.getDocumentCatalog().addOutputIntent(intent);
-                        log.info("Successfully added sRGB output intent using fallback loader");
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.error("Error setting output intent with profile at {}", profilePath, e);
-        }
-
-        info.setModificationDate(cal);
-        info.setCreationDate(cal);
     }
 
     private boolean isPdfFile(MultipartFile file) throws IOException {

@@ -7,8 +7,8 @@ import { PDFPreview } from './components/PDFPreview';
 import { XMLPreview } from './components/XMLPreview';
 import { StatusDisplay } from './components/StatusDisplay';
 import { cn } from './components/lib/utils';
-import { Hero } from './components/layout/Hero';
 import { parseZUGFeRD, ZUGFeRDData } from './components/lib/zugferdParser';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export interface ValidationError {
   line: number;
@@ -213,74 +213,103 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center p-8 selection:bg-primary/30">
-      <div className="max-w-5xl w-full">
-        <Hero />
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center p-4 md:p-8 selection:bg-brand-gold/30">
+      <div className="max-w-6xl w-full">
+        <header className="mb-12 text-center md:text-left flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-navy text-white rounded-full text-xs font-bold uppercase tracking-widest mb-4">
+              <Icon icon="solar:shield-check-bold" className="w-4 h-4 text-brand-gold" />
+              ISO 19005-3 Compliant
+            </div>
+            <h1 className="text-4xl md:text-6xl font-black text-brand-navy leading-none tracking-tighter uppercase italic">
+              PDF<span className="text-brand-gold">/</span>A-3 <br />
+              <span className="text-brand-blue">Converter</span>
+            </h1>
+          </div>
+          <p className="text-slate-500 font-medium max-w-xs md:text-right">
+            Secure, professional-grade ZUGFeRD 2.2 validation and PDF/A-3 generation.
+          </p>
+        </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-          <div className="space-y-8 bg-card/80 backdrop-blur-xl p-10 rounded-[2.5rem] shadow-layered border border-border/50">
-              <div className="flex items-center justify-between border-b border-border pb-6">
-                <div>
-                  <h3 className="text-2xl font-black text-foreground mb-1 leading-tight tracking-tight uppercase">Document Processing</h3>
-                  <p className="text-muted-foreground text-sm font-medium">Step-by-step PDF/A-3 generation.</p>
-                </div>
-                {(file || xmlFile) && (
-                  <button
-                    onClick={handleReset}
-                    className="p-2 bg-muted hover:bg-destructive hover:text-white rounded-xl transition-all text-muted-foreground flex items-center gap-1 group/clear"
-                  >
-                    <Icon icon="solar:trash-bin-minimalistic-bold" className="w-5 h-5 transition-transform group-hover/clear:rotate-12" />
-                  </button>
-                )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          <div className="space-y-6 bg-white p-8 rounded-3xl shadow-layered border border-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-6">
+              <div>
+                <h3 className="text-xl font-bold text-brand-navy leading-tight tracking-tight uppercase">Document Processing</h3>
+                <p className="text-slate-400 text-sm font-medium">Standard PDF to ZUGFeRD compliance.</p>
               </div>
+              {(file || xmlFile) && (
+                <button
+                  onClick={handleReset}
+                  className="p-2 bg-slate-100 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all text-slate-400 flex items-center gap-1 group/clear"
+                >
+                  <Icon icon="solar:trash-bin-minimalistic-bold" className="w-5 h-5" />
+                </button>
+              )}
+            </div>
 
             <FileUpload 
               file={file}
               onDrop={onDropPdf}
               accept={{ 'application/pdf': ['.pdf'] }}
-              title="Step 1: Source PDF"
-              description="Standard PDF document"
+              title="1. Source PDF"
+              description="Drop your standard PDF here"
             />
 
             <FileUpload 
               file={xmlFile}
               onDrop={onDropXml}
               accept={{ 'text/xml': ['.xml'] }}
-              title="Step 2: ZUGFeRD XML"
-              description="Structured invoice data"
+              title="2. ZUGFeRD XML"
+              description="Upload Factur-X/ZUGFeRD data"
             />
 
             {loading && (
-              <div className="space-y-2">
-                <div className="w-full bg-muted rounded-full h-3 overflow-hidden shadow-inner">
-                  <div 
-                    className="bg-primary h-full transition-all duration-300 ease-out shadow-[0_0_10px_rgba(var(--primary),0.5)]" 
-                    style={{ width: `${uploadProgress}%` }}
-                  ></div>
+              <div className="space-y-3 pt-4">
+                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${uploadProgress}%` }}
+                    className="bg-brand-navy h-full shadow-[0_0_15px_rgba(15,23,42,0.3)]" 
+                  />
                 </div>
-                <p className="text-xs text-right font-bold text-muted-foreground uppercase tracking-wider">{uploadProgress}% Complete</p>
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-brand-navy/40 uppercase tracking-widest">Processing Data</span>
+                  <span className="text-xs font-black text-brand-navy">{uploadProgress}%</span>
+                </div>
               </div>
             )}
 
             <button
-              disabled={!file || !xmlFile || loading}
+              disabled={!file || loading}
               onClick={handleUpload}
-              className="w-full bg-primary text-primary-foreground py-6 rounded-2xl font-black hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl flex items-center justify-center text-xl group relative overflow-hidden"
+              className="btn-primary w-full py-5 text-lg flex items-center justify-center gap-3 relative overflow-hidden group shadow-xl shadow-brand-navy/10"
             >
-              <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-              <div className="relative flex items-center justify-center">
+              <AnimatePresence mode="wait">
                 {loading ? (
-                  <>
-                    <Icon icon="solar:spinner-bold" className="w-7 h-7 mr-3 animate-spin" />
-                    <span>{uploadProgress < 100 ? `Uploading (${uploadProgress}%)` : 'Processing PDF/A-3...'}</span>
-                  </>
+                  <motion.div 
+                    key="loading"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="flex items-center"
+                  >
+                    <Icon icon="solar:spinner-bold" className="w-6 h-6 mr-3 animate-spin" />
+                    <span>{uploadProgress < 100 ? 'Uploading...' : 'Finalizing Compliance...'}</span>
+                  </motion.div>
                 ) : (
-                  <>
-                    <Icon icon="solar:magic-stick-bold-duotone" className="w-7 h-7 mr-3 transition-transform group-hover:rotate-12" />
-                    <span className="uppercase tracking-tight">Convert to PDF/A-3 (ZUGFeRD)</span>
-                  </>
+                  <motion.div 
+                    key="idle"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="flex items-center"
+                  >
+                    <Icon icon="solar:magic-stick-bold-duotone" className="w-6 h-6 text-brand-gold" />
+                    <span className="uppercase tracking-wide">Generate Compliant PDF/A-3</span>
+                  </motion.div>
                 )}
-              </div>
+              </AnimatePresence>
             </button>
 
             <StatusDisplay 
