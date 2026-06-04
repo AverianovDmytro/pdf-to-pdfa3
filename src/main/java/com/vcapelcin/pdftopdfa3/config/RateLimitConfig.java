@@ -13,7 +13,8 @@ public class RateLimitConfig {
 
     @Bean
     public Bucket createNewBucket() {
-        Bandwidth limit = Bandwidth.classic(10, Refill.greedy(10, Duration.ofMinutes(1)));
+        // Allow 20 requests per minute with a burst capacity of 10
+        Bandwidth limit = Bandwidth.classic(20, Refill.greedy(20, Duration.ofMinutes(1)));
         return Bucket.builder()
                 .addLimit(limit)
                 .build();
