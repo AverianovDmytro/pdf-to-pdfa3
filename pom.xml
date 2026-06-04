@@ -10,9 +10,9 @@
     </parent>
     <groupId>com.vcapelcin</groupId>
     <artifactId>pdf2zugferd</artifactId>
-    <version>0.0.5</version>
-    <name>PDF to PDF A3</name>
-    <description>PDF to PDF A3</description>
+    <version>0.0.6</version>
+    <name>PDF and XML to ZUGFeRD</name>
+    <description>PDF and XML to ZUGFeRD</description>
     <url/>
     <licenses>
         <license/>
