@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.vcapelcin</groupId>
     <artifactId>pdf2zugferd</artifactId>
-    <version>0.0.6</version>
+    <version>0.0.7</version>
     <name>PDF and XML to ZUGFeRD</name>
     <description>PDF and XML to ZUGFeRD</description>
     <url/>

@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -49,9 +50,12 @@ class PdfToPdfA3ApplicationTests {
                 pdfContent
         );
 
-        when(pdfConversionService.convertToPdfA3(any(), any())).thenReturn(pdfContent);
+        when(pdfConversionService.convertToPdfA3(any(), any(), any(), any(), any(), any())).thenReturn(pdfContent);
 
-        mockMvc.perform(multipart("/api/v1/convert").file(file))
+        org.springframework.test.web.servlet.MvcResult mvcResult = mockMvc.perform(multipart("/api/v1/convert").file(file))
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(mvcResult))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_PDF))
                 .andExpect(header().string("Content-Disposition", "attachment; filename=\"test_a3.pdf\""));
