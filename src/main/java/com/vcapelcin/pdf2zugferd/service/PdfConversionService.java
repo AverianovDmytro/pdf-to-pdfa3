@@ -7,6 +7,7 @@ import org.mustangproject.ZUGFeRD.IZUGFeRDExporter;
 import org.mustangproject.ZUGFeRD.ZUGFeRDExporterFromA1;
 import org.mustangproject.validator.ZUGFeRDValidator;
 import org.mustangproject.ZUGFeRD.Profiles;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.scheduling.annotation.Async;
 import java.util.concurrent.CompletableFuture;
@@ -29,6 +30,9 @@ public class PdfConversionService {
     private final ConversionRepository conversionRepository;
     private final ResourceLoader resourceLoader;
 
+    @Value("${app.pdf.validation-max-size:2MB}")
+    private String validationMaxSizeStr;
+
     public PdfConversionService(ConversionRepository conversionRepository, ResourceLoader resourceLoader) {
         this.conversionRepository = conversionRepository;
         this.resourceLoader = resourceLoader;
@@ -47,14 +51,8 @@ public class PdfConversionService {
         return convertToPdfA3(file, xmlFile, "BASIC", ipAddress);
     }
 
-    public byte[] convertToPdfA3(MultipartFile file, MultipartFile xmlFile, String zugferdConformanceLevel, String ipAddress) throws Exception {
-        return convertToPdfA3(file, xmlFile, zugferdConformanceLevel, ipAddress, null, null, null);
-    }
-
-    public byte[] convertToPdfA3(MultipartFile file, MultipartFile xmlFile, String zugferdConformanceLevel, String ipAddress,
-                               String author, String title, String subject) throws Exception {
+    public byte[] convertToPdfA3(byte[] pdfBytes, String originalFilename, byte[] xmlFileBytes, String xmlOriginalFilename, String zugferdConformanceLevel, String ipAddress) throws Exception {
         long startTime = System.currentTimeMillis();
-        String originalFilename = file.getOriginalFilename();
         log.info("[CONVERSION_START] File: {}, Profile: {}, IP: {}", originalFilename, zugferdConformanceLevel, ipAddress);
 
         Conversion conversion = Conversion.builder()
@@ -63,70 +61,65 @@ public class PdfConversionService {
                 .ipAddress(ipAddress)
                 .build();
         
-        if (xmlFile != null && !xmlFile.isEmpty()) {
-            conversion.setXmlFilename(xmlFile.getOriginalFilename());
-            conversion.setXmlSize(xmlFile.getSize());
+        if (xmlFileBytes != null) {
+            conversion.setXmlFilename(xmlOriginalFilename);
+            conversion.setXmlSize((long) xmlFileBytes.length);
         }
 
         conversion = conversionRepository.save(conversion);
 
-        if (!isPdfFile(file)) {
+        if (!isPdfFile(pdfBytes)) {
             log.error("[CONVERSION_FAILED] File is not a valid PDF: {}", originalFilename);
             updateConversionStatus(conversion, "FAILED", "Invalid file type. Only PDF files are allowed.", startTime);
             throw new IOException("Invalid file type. Only PDF files are allowed.");
         }
 
-        if (xmlFile != null && !xmlFile.isEmpty()) {
+        if (xmlFileBytes != null) {
             try {
-                log.info("[XML_VALIDATION] Validating {} against XSD", xmlFile.getOriginalFilename());
-                validateXmlAgainstXsd(xmlFile);
-                log.info("[XML_VALIDATION_SUCCESS] {} is valid", xmlFile.getOriginalFilename());
+                log.info("[XML_VALIDATION] Validating captured XML bytes against XSD");
+                validateXmlAgainstXsd(xmlFileBytes);
+                log.info("[XML_VALIDATION_SUCCESS] XML bytes are valid");
             } catch (Exception e) {
-                log.warn("[XML_VALIDATION_WARNING] XML validation failed for {}: {}", xmlFile.getOriginalFilename(), e.getMessage());
-                // We proceed with conversion even if XML is invalid as per user request
+                log.warn("[XML_VALIDATION_WARNING] XML validation failed: {}", e.getMessage());
             }
         }
 
-        try (InputStream pdfSource = file.getInputStream();
-             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            
-            conversion.setOriginalSize(file.getSize());
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            conversion.setOriginalSize((long) pdfBytes.length);
             
             String targetFilename = (originalFilename != null ? originalFilename.replace(".pdf", "") : "converted") + "_a3.pdf";
             conversion.setTargetFilename(targetFilename);
 
             IZUGFeRDExporter exporter = new ZUGFeRDExporterFromA1();
-            
-            // Ignore PDFA errors to allow regular PDF input
             ((ZUGFeRDExporterFromA1)exporter).ignorePDFAErrors();
 
-            // Load source PDF
-            log.info("[PDF_LOAD] Loading source PDF");
-            exporter.load(pdfSource);
+            log.info("[PDF_LOAD] Loading source PDF from bytes");
+            try (java.io.ByteArrayInputStream pdfIs = new java.io.ByteArrayInputStream(pdfBytes)) {
+                exporter.load(pdfIs);
+            }
 
-            // Configure conformance level
             exporter.setProfile(Profiles.getByName(zugferdConformanceLevel));
             
-            if (xmlFile != null && !xmlFile.isEmpty()) {
-                log.info("[XML_ATTACH] Attaching XML file");
-                exporter.setXML(xmlFile.getBytes());
+            if (xmlFileBytes != null) {
+                log.info("[XML_ATTACH] Attaching XML bytes");
+                exporter.setXML(xmlFileBytes);
             } else {
-                log.info("[XML_ATTACH] Attaching dummy XML (none provided)");
+                log.info("[XML_ATTACH] Attaching dummy XML");
                 byte[] dummyXml = ("<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\"></rsm:CrossIndustryInvoice>").getBytes();
                 exporter.setXML(dummyXml);
             }
 
-            // Set metadata if provided
-            // Note: Mustangproject's IZUGFeRDExporter doesn't have direct setters for these in all versions.
-            // Skipping for now to avoid compilation errors.
-            
-            // Export to PDF/A-3
             log.info("[PDF_EXPORT] Exporting to PDF/A-3");
             exporter.export(out);
             byte[] convertedBytes = out.toByteArray();
             
-            log.info("[PDFA_VALIDATION] Verifying PDF/A-3 compliance");
-            validatePdfA3(convertedBytes);
+            log.info("[PDFA_VALIDATION] Verifying PDF/A-3 compliance for document size: {} bytes", convertedBytes.length);
+            long maxSize = parseSize(validationMaxSizeStr);
+            if (convertedBytes.length <= maxSize) {
+                validatePdfA3(convertedBytes);
+            } else {
+                log.info("[PDFA_VALIDATION_SKIPPED] File size > {}, skipping validation to speed up processing", validationMaxSizeStr);
+            }
             
             log.info("[CONVERSION_SUCCESS] Created PDF/A-3 document, size: {} bytes", convertedBytes.length);
             
@@ -145,6 +138,27 @@ public class PdfConversionService {
         }
     }
 
+    public byte[] convertToPdfA3(MultipartFile file, MultipartFile xmlFile, String zugferdConformanceLevel, String ipAddress) throws Exception {
+        return convertToPdfA3(file.getBytes(), file.getOriginalFilename(), 
+                (xmlFile != null && !xmlFile.isEmpty()) ? xmlFile.getBytes() : null, 
+                (xmlFile != null) ? xmlFile.getOriginalFilename() : null, 
+                zugferdConformanceLevel, ipAddress);
+    }
+
+    private boolean isPdfFile(byte[] pdfBytes) {
+        if (pdfBytes.length < 4) return false;
+        // PDF magic bytes: %PDF (25 50 44 46)
+        return pdfBytes[0] == 0x25 && pdfBytes[1] == 0x50 && pdfBytes[2] == 0x44 && pdfBytes[3] == 0x46;
+    }
+
+    private void validateXmlAgainstXsd(byte[] xmlBytes) throws Exception {
+        SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
+        InputStream xsdStream = resourceLoader.getResource("classpath:xsd/zugferd22/factur-x.xsd").getInputStream();
+        Schema schema = factory.newSchema(new StreamSource(xsdStream));
+        Validator validator = schema.newValidator();
+        validator.validate(new StreamSource(new java.io.ByteArrayInputStream(xmlBytes)));
+    }
+
     private void updateConversionStatus(Conversion conversion, String status, String errorMessage, long startTime) {
         try {
             conversion.setStatus(status);
@@ -157,13 +171,7 @@ public class PdfConversionService {
     }
 
     private void validateXmlAgainstXsd(MultipartFile xmlFile) throws Exception {
-        SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
-        // Using Factur-X / ZUGFeRD 2.2 XSD
-        InputStream xsdStream = resourceLoader.getResource("classpath:xsd/zugferd22/factur-x.xsd").getInputStream();
-        Schema schema = factory.newSchema(new StreamSource(xsdStream));
-        Validator validator = schema.newValidator();
-        validator.validate(new StreamSource(xmlFile.getInputStream()));
-        log.info("XML Validation against XSD successful.");
+        validateXmlAgainstXsd(xmlFile.getBytes());
     }
 
     public void validatePdfA3(byte[] pdfBytes) {
@@ -184,6 +192,23 @@ public class PdfConversionService {
             }
         } catch (Exception e) {
             log.error("Error during PDF/A-3 validation", e);
+        }
+    }
+
+    private long parseSize(String size) {
+        if (size == null || size.isEmpty()) return 2 * 1024 * 1024;
+        String upperSize = size.toUpperCase();
+        if (upperSize.endsWith("MB")) {
+            return Long.parseLong(upperSize.replace("MB", "").trim()) * 1024 * 1024;
+        } else if (upperSize.endsWith("KB")) {
+            return Long.parseLong(upperSize.replace("KB", "").trim()) * 1024;
+        } else if (upperSize.endsWith("B")) {
+            return Long.parseLong(upperSize.replace("B", "").trim());
+        }
+        try {
+            return Long.parseLong(upperSize.trim());
+        } catch (NumberFormatException e) {
+            return 2 * 1024 * 1024; // Default to 2MB
         }
     }
 

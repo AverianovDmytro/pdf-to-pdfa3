@@ -124,7 +124,7 @@ function App() {
     try {
       const response = await axios.post('/api/v1/convert', formData, {
         responseType: 'blob',
-        timeout: 60000, // 60 seconds timeout
+        timeout: 600000, // 10 minutes timeout
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || progressEvent.loaded));
           setUploadProgress(percentCompleted);
