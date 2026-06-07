@@ -148,8 +148,11 @@ function App() {
         try {
           const decodedErrors = JSON.parse(atob(validationErrorsHeader));
           setXmlErrors(decodedErrors);
-          currentStatus = 'error'; // Show red status but file was downloaded
-          currentMessage = 'PDF converted, but ZUGFeRD XML validation failed.';
+          const hasErrors = decodedErrors.some((e: ValidationError) => e.type === 'ERROR' || e.type === 'FATAL');
+          currentStatus = hasErrors ? 'error' : 'success';
+          currentMessage = hasErrors 
+            ? 'PDF converted, but ZUGFeRD validation failed with errors.' 
+            : 'PDF converted with some validation notices.';
         } catch (e) {
           console.error('Failed to parse validation errors header', e);
         }
@@ -176,7 +179,7 @@ function App() {
       localStorage.setItem('recentConversions', JSON.stringify(updated));
 
     } catch (err) {
-      const axiosError = err as AxiosError<{ message?: string; errors?: string[] }>;
+      const axiosError = err as AxiosError<{ message?: string; error?: string; errors?: (string | ValidationError)[] }>;
       console.error(axiosError);
       setStatus('error');
       
@@ -201,7 +204,7 @@ function App() {
         reader.onload = () => {
           try {
             const errorData = JSON.parse(reader.result as string);
-            const msg = errorData.message || 'Failed to convert PDF. Please try again.';
+            const msg = errorData.message || (errorData as { error?: string }).error || 'Failed to convert PDF. Please try again.';
             setMessage(msg);
             setToastContent({ title: 'Conversion Failed', description: msg, variant: 'error' });
             setToastOpen(true);
@@ -209,12 +212,17 @@ function App() {
               if (Array.isArray(errorData.errors) && errorData.errors.length > 0 && typeof errorData.errors[0] === 'object') {
                 setXmlErrors(errorData.errors as unknown as ValidationError[]);
               } else if (Array.isArray(errorData.errors)) {
-                setXmlErrors(errorData.errors.map((msg: string) => ({
-                  line: 0,
-                  column: 0,
-                  message: msg,
-                  type: 'ERROR'
-                })));
+                setXmlErrors(errorData.errors.map((val: string | ValidationError) => {
+                  if (typeof val === 'string') {
+                    return {
+                      line: 0,
+                      column: 0,
+                      message: val,
+                      type: 'ERROR'
+                    };
+                  }
+                  return val;
+                }));
               }
             }
           } catch {
@@ -226,8 +234,8 @@ function App() {
         };
         reader.readAsText(axiosError.response.data);
       } else {
-        const errorData = axiosError.response?.data;
-        const msg = errorData?.message || 'Failed to convert PDF. Please try again.';
+        const errorData = axiosError.response?.data as { message?: string; error?: string; errors?: (string | ValidationError)[] };
+        const msg = errorData?.message || errorData?.error || 'Failed to convert PDF. Please try again.';
         setMessage(msg);
         setToastContent({ title: 'Conversion Failed', description: msg, variant: 'error' });
         setToastOpen(true);
@@ -236,13 +244,18 @@ function App() {
           if (Array.isArray(errorData.errors) && errorData.errors.length > 0 && typeof errorData.errors[0] === 'object') {
             setXmlErrors(errorData.errors as unknown as ValidationError[]);
           } else if (Array.isArray(errorData.errors)) {
-            // Fallback for simple string errors
-            setXmlErrors(errorData.errors.map((msg: string) => ({
-              line: 0,
-              column: 0,
-              message: msg,
-              type: 'ERROR'
-            })));
+            // Fallback for simple string errors or mixed types
+            setXmlErrors(errorData.errors.map((val: string | ValidationError) => {
+              if (typeof val === 'string') {
+                return {
+                  line: 0,
+                  column: 0,
+                  message: val,
+                  type: 'ERROR'
+                };
+              }
+              return val;
+            }));
           }
         }
       }

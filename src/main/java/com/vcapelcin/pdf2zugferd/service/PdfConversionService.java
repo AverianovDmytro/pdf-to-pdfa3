@@ -22,6 +22,8 @@ import javax.xml.validation.Validator;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @Slf4j
@@ -52,6 +54,10 @@ public class PdfConversionService {
     }
 
     public byte[] convertToPdfA3(byte[] pdfBytes, String originalFilename, byte[] xmlFileBytes, String xmlOriginalFilename, String zugferdConformanceLevel, String ipAddress) throws Exception {
+        return convertToPdfA3(pdfBytes, originalFilename, xmlFileBytes, xmlOriginalFilename, zugferdConformanceLevel, ipAddress, null);
+    }
+
+    public byte[] convertToPdfA3(byte[] pdfBytes, String originalFilename, byte[] xmlFileBytes, String xmlOriginalFilename, String zugferdConformanceLevel, String ipAddress, List<XmlValidationService.ValidationError> pdfErrors) throws Exception {
         long startTime = System.currentTimeMillis();
         log.info("[CONVERSION_START] File: {}, Profile: {}, IP: {}", originalFilename, zugferdConformanceLevel, ipAddress);
 
@@ -81,6 +87,8 @@ public class PdfConversionService {
                 log.info("[XML_VALIDATION_SUCCESS] XML bytes are valid");
             } catch (Exception e) {
                 log.warn("[XML_VALIDATION_WARNING] XML validation failed: {}", e.getMessage());
+                // Throw it to catch it in the controller and show to the user as a real error
+                throw e;
             }
         }
 
@@ -116,7 +124,10 @@ public class PdfConversionService {
             log.info("[PDFA_VALIDATION] Verifying PDF/A-3 compliance for document size: {} bytes", convertedBytes.length);
             long maxSize = parseSize(validationMaxSizeStr);
             if (convertedBytes.length <= maxSize) {
-                validatePdfA3(convertedBytes);
+                List<XmlValidationService.ValidationError> errors = validatePdfA3(convertedBytes);
+                if (pdfErrors != null && errors != null) {
+                    pdfErrors.addAll(errors);
+                }
             } else {
                 log.info("[PDFA_VALIDATION_SKIPPED] File size > {}, skipping validation to speed up processing", validationMaxSizeStr);
             }
@@ -174,7 +185,8 @@ public class PdfConversionService {
         validateXmlAgainstXsd(xmlFile.getBytes());
     }
 
-    public void validatePdfA3(byte[] pdfBytes) {
+    public List<XmlValidationService.ValidationError> validatePdfA3(byte[] pdfBytes) {
+        List<XmlValidationService.ValidationError> errors = new ArrayList<>();
         try {
             ZUGFeRDValidator validator = new ZUGFeRDValidator();
             // Need to write to temp file as ZUGFeRDValidator.validate(String) expects a filename
@@ -182,8 +194,47 @@ public class PdfConversionService {
             try {
                 java.nio.file.Files.write(tempFile.toPath(), pdfBytes);
                 String report = validator.validate(tempFile.getAbsolutePath());
-                if (report.contains("invalid") || report.contains("error")) {
-                    log.warn("PDF/A-3 Validation potential issues for document: {}", report);
+                
+                // Mustang report is XML. 
+                // We'll extract as much context as possible.
+                if (report.contains("invalid") || report.contains("error") || report.contains("notice")) {
+                    log.info("PDF/A-3 Validation potential issues for document: {}", report);
+                    
+                    // Improved regex to capture more context from the Mustang report
+                    // Typically it has <error>...</error>, <notice>...</notice>
+                    // Sometimes there is additional info in <summary> or other tags.
+                    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("<(error|notice|warning)>(.*?)</\\1>", java.util.regex.Pattern.DOTALL);
+                    java.util.regex.Matcher matcher = pattern.matcher(report);
+                    while (matcher.find()) {
+                        String type = matcher.group(1).toUpperCase();
+                        String rawMessage = matcher.group(2).trim();
+                        
+                        // Clean up message while preserving important info
+                        String message = rawMessage.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+                        
+                        errors.add(XmlValidationService.ValidationError.builder()
+                                .message(message)
+                                .type(type.equals("NOTICE") ? "WARNING" : type)
+                                .build());
+                    }
+                    
+                    // If no specific messages found but status is invalid, provide a better hint
+                    if (errors.isEmpty() && report.contains("invalid")) {
+                        // Try to find a summary message
+                        java.util.regex.Pattern summaryPattern = java.util.regex.Pattern.compile("status=\"invalid\"\\s+message=\"(.*?)\"");
+                        java.util.regex.Matcher summaryMatcher = summaryPattern.matcher(report);
+                        if (summaryMatcher.find()) {
+                            errors.add(XmlValidationService.ValidationError.builder()
+                                    .message("Validation failed: " + summaryMatcher.group(1))
+                                    .type("ERROR")
+                                    .build());
+                        } else {
+                            errors.add(XmlValidationService.ValidationError.builder()
+                                    .message("ZUGFeRD validation failed with unknown error")
+                                    .type("ERROR")
+                                    .build());
+                        }
+                    }
                 } else {
                     log.info("PDF/A-3 Validation report: {}", report);
                 }
@@ -193,6 +244,7 @@ public class PdfConversionService {
         } catch (Exception e) {
             log.error("Error during PDF/A-3 validation", e);
         }
+        return errors;
     }
 
     private long parseSize(String size) {

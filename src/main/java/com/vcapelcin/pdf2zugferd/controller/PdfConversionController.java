@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.async.DeferredResult;
 import org.springframework.web.multipart.MultipartFile;
+import org.xml.sax.SAXException;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -100,7 +101,8 @@ public class PdfConversionController {
 
                 // Call service with bytes instead of MultipartFile if possible, or create a mock
                 // Actually, let's update the service to accept bytes or keep it as is if it handles bytes
-                byte[] convertedPdf = pdfConversionService.convertToPdfA3(pdfFileBytes, originalFilename, xmlFileBytes, xmlOriginalFilename, profile, ipAddress);
+                List<XmlValidationService.ValidationError> pdfErrors = new java.util.ArrayList<>();
+                byte[] convertedPdf = pdfConversionService.convertToPdfA3(pdfFileBytes, originalFilename, xmlFileBytes, xmlOriginalFilename, profile, ipAddress, pdfErrors);
 
                 String newFilename = (originalFilename != null ? originalFilename.replace(".pdf", "") : "converted") + "_a3.pdf";
 
@@ -110,15 +112,21 @@ public class PdfConversionController {
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + newFilename + "\"")
                         .contentType(MediaType.APPLICATION_PDF);
 
-                if (xmlErrors != null && !xmlErrors.isEmpty()) {
+                List<XmlValidationService.ValidationError> allErrors = new java.util.ArrayList<>();
+                if (xmlErrors != null) {
+                    allErrors.addAll(xmlErrors);
+                }
+                allErrors.addAll(pdfErrors);
+
+                if (!allErrors.isEmpty()) {
                     try {
                         com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                        String errorsJson = mapper.writeValueAsString(xmlErrors);
+                        String errorsJson = mapper.writeValueAsString(allErrors);
                         String encodedErrors = java.util.Base64.getEncoder().encodeToString(errorsJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                         responseBuilder.header("X-XML-Validation-Errors", encodedErrors);
                         responseBuilder.header("Access-Control-Expose-Headers", "X-XML-Validation-Errors");
                     } catch (Exception e) {
-                        log.error("Failed to serialize XML errors", e);
+                        log.error("Failed to serialize validation errors", e);
                     }
                 }
 
@@ -130,7 +138,38 @@ public class PdfConversionController {
             } catch (Exception e) {
                 log.error("Failed to convert PDF file: {}", originalFilename, e);
                 if (!deferredResult.isSetOrExpired()) {
-                    deferredResult.setErrorResult(e);
+                    // Try to get the real cause if it's wrapped in an IOException or similar
+                    Throwable rootCause = e;
+                    while (rootCause.getCause() != null && rootCause != rootCause.getCause()) {
+                        rootCause = rootCause.getCause();
+                    }
+                    
+                    String errorMessage = rootCause.getMessage();
+                    if (errorMessage == null || errorMessage.isEmpty()) {
+                        errorMessage = e.getMessage();
+                    }
+                    if (errorMessage == null || errorMessage.isEmpty()) {
+                        errorMessage = "An unexpected error occurred during conversion";
+                    }
+
+                    Map<String, Object> errorMap = new HashMap<>();
+                    errorMap.put("error", errorMessage);
+                    errorMap.put("message", errorMessage); // frontend uses message
+                    errorMap.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+                    errorMap.put("timestamp", System.currentTimeMillis());
+                    
+                    // If it's a validation error or something that should be 400
+                    HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
+                    if (rootCause instanceof SAXException || 
+                        rootCause instanceof IllegalArgumentException || 
+                        (errorMessage != null && errorMessage.contains("ZUGFeRD XML does not contain"))) {
+                        status = HttpStatus.BAD_REQUEST;
+                        errorMap.put("status", HttpStatus.BAD_REQUEST.value());
+                    }
+
+                    deferredResult.setResult(ResponseEntity.status(status)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(errorMap));
                 }
             }
         });
@@ -163,6 +202,7 @@ public class PdfConversionController {
 
         Map<String, Object> error = new HashMap<>();
         error.put("error", e.getMessage() != null ? e.getMessage() : "An unexpected error occurred");
+        error.put("message", e.getMessage() != null ? e.getMessage() : "An unexpected error occurred");
         error.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
         error.put("timestamp", System.currentTimeMillis());
         
@@ -176,6 +216,7 @@ public class PdfConversionController {
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException e) {
         Map<String, Object> error = new HashMap<>();
         error.put("error", e.getMessage());
+        error.put("message", e.getMessage());
         error.put("status", HttpStatus.BAD_REQUEST.value());
         error.put("timestamp", System.currentTimeMillis());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
