@@ -90,8 +90,9 @@ public class PdfConversionController {
         log.info("Starting async conversion for file: {} (PDF size: {} bytes)", originalFilename, pdfFileBytes.length);
 
         CompletableFuture.runAsync(() -> {
+            List<XmlValidationService.ValidationError> xmlErrors = null;
+            List<XmlValidationService.ValidationError> pdfErrors = new java.util.ArrayList<>();
             try {
-                List<XmlValidationService.ValidationError> xmlErrors = null;
                 if (xmlFileBytes != null) {
                     xmlErrors = xmlValidationService.validateXmlDetailed(xmlFileBytes, profile);
                     if (!xmlErrors.isEmpty()) {
@@ -101,7 +102,6 @@ public class PdfConversionController {
 
                 // Call service with bytes instead of MultipartFile if possible, or create a mock
                 // Actually, let's update the service to accept bytes or keep it as is if it handles bytes
-                List<XmlValidationService.ValidationError> pdfErrors = new java.util.ArrayList<>();
                 byte[] convertedPdf = pdfConversionService.convertToPdfA3(pdfFileBytes, originalFilename, xmlFileBytes, xmlOriginalFilename, profile, ipAddress, pdfErrors);
 
                 String newFilename = (originalFilename != null ? originalFilename.replace(".pdf", "") : "converted") + "_a3.pdf";
@@ -157,6 +157,13 @@ public class PdfConversionController {
                     errorMap.put("message", errorMessage); // frontend uses message
                     errorMap.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
                     errorMap.put("timestamp", System.currentTimeMillis());
+                    
+                    List<XmlValidationService.ValidationError> allErrors = new java.util.ArrayList<>();
+                    if (xmlErrors != null) allErrors.addAll(xmlErrors);
+                    if (pdfErrors != null) allErrors.addAll(pdfErrors);
+                    if (!allErrors.isEmpty()) {
+                        errorMap.put("errors", allErrors);
+                    }
                     
                     // If it's a validation error or something that should be 400
                     HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;

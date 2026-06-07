@@ -12,6 +12,7 @@ import * as Toast from '@radix-ui/react-toast';
 export interface ValidationError {
   line: number;
   column: number;
+  location?: string;
   message: string;
   type: 'ERROR' | 'FATAL' | 'WARNING';
 }
@@ -21,6 +22,8 @@ interface RecentConversion {
   filename: string;
   date: string;
   status: 'success' | 'error';
+  message?: string;
+  errors?: ValidationError[];
 }
 
 function App() {
@@ -142,11 +145,12 @@ function App() {
 
       let currentStatus: 'success' | 'error' = 'success';
       let currentMessage = 'PDF successfully converted to PDF/A-3!';
+      let decodedErrors: ValidationError[] = [];
 
       const validationErrorsHeader = response.headers['x-xml-validation-errors'];
       if (validationErrorsHeader) {
         try {
-          const decodedErrors = JSON.parse(atob(validationErrorsHeader));
+          decodedErrors = JSON.parse(atob(validationErrorsHeader));
           setXmlErrors(decodedErrors);
           const hasErrors = decodedErrors.some((e: ValidationError) => e.type === 'ERROR' || e.type === 'FATAL');
           currentStatus = hasErrors ? 'error' : 'success';
@@ -172,7 +176,9 @@ function App() {
         id: Math.random().toString(36).substr(2, 9),
         filename: file.name,
         date: new Date().toLocaleString(),
-        status: currentStatus
+        status: currentStatus,
+        message: currentMessage,
+        errors: decodedErrors
       };
       const updated = [newConversion, ...recentConversions].slice(0, 5);
       setRecentConversions(updated);
@@ -208,23 +214,40 @@ function App() {
             setMessage(msg);
             setToastContent({ title: 'Conversion Failed', description: msg, variant: 'error' });
             setToastOpen(true);
+            
+            let errors: ValidationError[] = [];
             if (errorData.errors) {
               if (Array.isArray(errorData.errors) && errorData.errors.length > 0 && typeof errorData.errors[0] === 'object') {
-                setXmlErrors(errorData.errors as unknown as ValidationError[]);
+                errors = errorData.errors as unknown as ValidationError[];
               } else if (Array.isArray(errorData.errors)) {
-                setXmlErrors(errorData.errors.map((val: string | ValidationError) => {
+                errors = errorData.errors.map((val: string | ValidationError) => {
                   if (typeof val === 'string') {
                     return {
                       line: 0,
                       column: 0,
                       message: val,
                       type: 'ERROR'
-                    };
+                    } as ValidationError;
                   }
                   return val;
-                }));
+                });
               }
+              setXmlErrors(errors);
             }
+
+            // Update recent conversions for error case
+            const newConversion: RecentConversion = {
+              id: Math.random().toString(36).substr(2, 9),
+              filename: file.name,
+              date: new Date().toLocaleString(),
+              status: 'error',
+              message: msg,
+              errors: errors
+            };
+            const updated = [newConversion, ...recentConversions].slice(0, 5);
+            setRecentConversions(updated);
+            localStorage.setItem('recentConversions', JSON.stringify(updated));
+
           } catch {
             const msg = 'Failed to convert PDF. Please try again.';
             setMessage(msg);
@@ -239,25 +262,39 @@ function App() {
         setMessage(msg);
         setToastContent({ title: 'Conversion Failed', description: msg, variant: 'error' });
         setToastOpen(true);
+        
+        let errors: ValidationError[] = [];
         if (errorData?.errors) {
-          // If errors is an array of objects matching ValidationError
           if (Array.isArray(errorData.errors) && errorData.errors.length > 0 && typeof errorData.errors[0] === 'object') {
-            setXmlErrors(errorData.errors as unknown as ValidationError[]);
+            errors = errorData.errors as unknown as ValidationError[];
           } else if (Array.isArray(errorData.errors)) {
-            // Fallback for simple string errors or mixed types
-            setXmlErrors(errorData.errors.map((val: string | ValidationError) => {
+            errors = errorData.errors.map((val: string | ValidationError) => {
               if (typeof val === 'string') {
                 return {
                   line: 0,
                   column: 0,
                   message: val,
                   type: 'ERROR'
-                };
+                } as ValidationError;
               }
               return val;
-            }));
+            });
           }
+          setXmlErrors(errors);
         }
+
+        // Update recent conversions for error case
+        const newConversion: RecentConversion = {
+          id: Math.random().toString(36).substr(2, 9),
+          filename: file.name,
+          date: new Date().toLocaleString(),
+          status: 'error',
+          message: msg,
+          errors: errors
+        };
+        const updated = [newConversion, ...recentConversions].slice(0, 5);
+        setRecentConversions(updated);
+        localStorage.setItem('recentConversions', JSON.stringify(updated));
       }
     } finally {
       setLoading(false);
@@ -420,7 +457,15 @@ function App() {
               <div className="flex flex-col gap-0.5">
                 {recentConversions.length > 0 ? (
                   recentConversions.map(conv => (
-                    <div key={conv.id} className="flex items-center gap-2.5 p-[10px_12px] rounded-[10px] hover:bg-background-secondary transition-colors cursor-pointer group">
+                    <div 
+                      key={conv.id} 
+                      onClick={() => {
+                        setStatus(conv.status);
+                        setMessage(conv.message || (conv.status === 'success' ? 'Conversion successful' : 'Conversion failed'));
+                        setXmlErrors(conv.errors || []);
+                      }}
+                      className="flex items-center gap-2.5 p-[10px_12px] rounded-[10px] hover:bg-background-secondary transition-colors cursor-pointer group"
+                    >
                       <div className={cn("w-[7px] h-[7px] rounded-full shrink-0", conv.status === 'success' ? "bg-green-500" : "bg-red-500")} />
                       <div className="flex-1 min-w-0">
                         <div className="text-[13px] font-semibold text-text-primary truncate">{conv.filename}</div>

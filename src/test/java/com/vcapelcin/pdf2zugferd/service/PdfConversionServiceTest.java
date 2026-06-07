@@ -214,4 +214,41 @@ class PdfConversionServiceTest {
         // Whether it has errors depends on the Mustang version and environment.
         assertNotNull(pdfErrors);
     }
+
+    @Test
+    void testExtractErrorsFromMustangReport() {
+        String report = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<validation profile=\"EN16931\">\n" +
+                "  <summary status=\"invalid\"/>\n" +
+                "  <messages>\n" +
+                "    <error>Business process MUST be provided.</error>\n" +
+                "    <warning>Some notice.</warning>\n" +
+                "    <failedAssert test=\"count(ram:GuidelineSpecifiedDocumentContextParameter) = 1\" location=\"/*:CrossIndustryInvoice[namespace-uri()='urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100'][1]/*:ExchangedDocumentContext[namespace-uri()='urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100'][1]\">\n" +
+                "      Business process MUST be provided.\n" +
+                "    </failedAssert>\n" +
+                "  </messages>\n" +
+                "</validation>";
+        
+        java.util.List<XmlValidationService.ValidationError> errors = new java.util.ArrayList<>();
+        pdfConversionService.parseMustangReport(report, errors);
+        
+        assertEquals(3, errors.size());
+        
+        // Check error
+        assertTrue(errors.stream().anyMatch(e -> "ERROR".equals(e.getType()) && "Business process MUST be provided.".equals(e.getMessage())));
+        
+        // Check warning
+        assertTrue(errors.stream().anyMatch(e -> "WARNING".equals(e.getType()) && "Some notice.".equals(e.getMessage())));
+        
+        // Check failedAssert
+        var failedAssert = errors.stream()
+                .filter(e -> e.getLocation() != null && e.getLocation().contains("CrossIndustryInvoice"))
+                .findFirst()
+                .orElse(null);
+        
+        assertNotNull(failedAssert);
+        assertEquals("ERROR", failedAssert.getType());
+        assertTrue(failedAssert.getMessage().contains("Business process MUST be provided."));
+        assertTrue(failedAssert.getMessage().contains("Test: count(ram:GuidelineSpecifiedDocumentContextParameter) = 1"));
+    }
 }

@@ -13,8 +13,13 @@ import org.springframework.scheduling.annotation.Async;
 import java.util.concurrent.CompletableFuture;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
@@ -194,50 +199,7 @@ public class PdfConversionService {
             try {
                 java.nio.file.Files.write(tempFile.toPath(), pdfBytes);
                 String report = validator.validate(tempFile.getAbsolutePath());
-                
-                // Mustang report is XML. 
-                // We'll extract as much context as possible.
-                if (report.contains("invalid") || report.contains("error") || report.contains("notice")) {
-                    log.info("PDF/A-3 Validation potential issues for document: {}", report);
-                    
-                    // Improved regex to capture more context from the Mustang report
-                    // Typically it has <error>...</error>, <notice>...</notice>
-                    // Sometimes there is additional info in <summary> or other tags.
-                    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("<(error|notice|warning)>(.*?)</\\1>", java.util.regex.Pattern.DOTALL);
-                    java.util.regex.Matcher matcher = pattern.matcher(report);
-                    while (matcher.find()) {
-                        String type = matcher.group(1).toUpperCase();
-                        String rawMessage = matcher.group(2).trim();
-                        
-                        // Clean up message while preserving important info
-                        String message = rawMessage.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
-                        
-                        errors.add(XmlValidationService.ValidationError.builder()
-                                .message(message)
-                                .type(type.equals("NOTICE") ? "WARNING" : type)
-                                .build());
-                    }
-                    
-                    // If no specific messages found but status is invalid, provide a better hint
-                    if (errors.isEmpty() && report.contains("invalid")) {
-                        // Try to find a summary message
-                        java.util.regex.Pattern summaryPattern = java.util.regex.Pattern.compile("status=\"invalid\"\\s+message=\"(.*?)\"");
-                        java.util.regex.Matcher summaryMatcher = summaryPattern.matcher(report);
-                        if (summaryMatcher.find()) {
-                            errors.add(XmlValidationService.ValidationError.builder()
-                                    .message("Validation failed: " + summaryMatcher.group(1))
-                                    .type("ERROR")
-                                    .build());
-                        } else {
-                            errors.add(XmlValidationService.ValidationError.builder()
-                                    .message("ZUGFeRD validation failed with unknown error")
-                                    .type("ERROR")
-                                    .build());
-                        }
-                    }
-                } else {
-                    log.info("PDF/A-3 Validation report: {}", report);
-                }
+                parseMustangReport(report, errors);
             } finally {
                 tempFile.delete();
             }
@@ -245,6 +207,94 @@ public class PdfConversionService {
             log.error("Error during PDF/A-3 validation", e);
         }
         return errors;
+    }
+
+    protected void parseMustangReport(String report, List<XmlValidationService.ValidationError> errors) {
+        // Mustang report is XML. 
+        if (report != null && !report.isEmpty()) {
+            try {
+                DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+                dbFactory.setNamespaceAware(true);
+                DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+                java.io.InputStream is = new java.io.ByteArrayInputStream(report.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                Document doc = dBuilder.parse(is);
+                doc.getDocumentElement().normalize();
+
+                // 1. Capture <error>, <warning>, <notice>
+                String[] tags = {"error", "warning", "notice"};
+                for (String tag : tags) {
+                    NodeList nodeList = doc.getElementsByTagName(tag);
+                    for (int i = 0; i < nodeList.getLength(); i++) {
+                        Element element = (Element) nodeList.item(i);
+                        String message = element.getTextContent().trim();
+                        String type = tag.equalsIgnoreCase("notice") ? "WARNING" : tag.toUpperCase();
+                        
+                        errors.add(XmlValidationService.ValidationError.builder()
+                                .message(message)
+                                .type(type)
+                                .build());
+                    }
+                }
+
+                // 2. Capture <failedAssert> (Schematron)
+                NodeList failedAsserts = doc.getElementsByTagName("failedAssert");
+                for (int i = 0; i < failedAsserts.getLength(); i++) {
+                    Element element = (Element) failedAsserts.item(i);
+                    String test = element.getAttribute("test");
+                    String location = element.getAttribute("location");
+                    String message = element.getTextContent().trim();
+                    
+                    errors.add(XmlValidationService.ValidationError.builder()
+                            .message(message + (test.isEmpty() ? "" : " (Test: " + test + ")"))
+                            .location(location)
+                            .type("ERROR")
+                            .build());
+                }
+
+                // 3. Fallback if report says invalid but no errors found
+                if (errors.isEmpty() && report.contains("status=\"invalid\"")) {
+                    errors.add(XmlValidationService.ValidationError.builder()
+                            .message("ZUGFeRD validation failed (Mustang report indicates invalid status)")
+                            .type("ERROR")
+                            .build());
+                }
+
+            } catch (Exception parseEx) {
+                log.error("Failed to parse Mustang XML report, falling back to regex", parseEx);
+                // Fallback to regex if XML parsing fails
+                parseReportWithRegex(report, errors);
+            }
+        }
+    }
+
+    private void parseReportWithRegex(String report, List<XmlValidationService.ValidationError> errors) {
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("<(error|notice|warning)>(.*?)</\\1>", java.util.regex.Pattern.DOTALL);
+        java.util.regex.Matcher matcher = pattern.matcher(report);
+        while (matcher.find()) {
+            String type = matcher.group(1).toUpperCase();
+            String rawMessage = matcher.group(2).trim();
+            String message = rawMessage.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+            errors.add(XmlValidationService.ValidationError.builder()
+                    .message(message)
+                    .type(type.equals("NOTICE") ? "WARNING" : type)
+                    .build());
+        }
+        
+        if (errors.isEmpty() && report.contains("status=\"invalid\"")) {
+            java.util.regex.Pattern summaryPattern = java.util.regex.Pattern.compile("status=\"invalid\"\\s+message=\"(.*?)\"");
+            java.util.regex.Matcher summaryMatcher = summaryPattern.matcher(report);
+            if (summaryMatcher.find()) {
+                errors.add(XmlValidationService.ValidationError.builder()
+                        .message("Validation failed: " + summaryMatcher.group(1))
+                        .type("ERROR")
+                        .build());
+            } else {
+                errors.add(XmlValidationService.ValidationError.builder()
+                        .message("ZUGFeRD validation failed with unknown error")
+                        .type("ERROR")
+                        .build());
+            }
+        }
     }
 
     private long parseSize(String size) {

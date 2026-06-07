@@ -36,6 +36,7 @@ public class XmlValidationService {
     public static class ValidationError {
         private int line;
         private int column;
+        private String location;
         private String message;
         private String type; // ERROR, FATAL, WARNING
     }
