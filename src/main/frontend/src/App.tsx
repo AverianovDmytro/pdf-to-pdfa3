@@ -74,7 +74,7 @@ function App() {
       setStatus('idle');
       setMessage('');
       setXmlErrors([]);
-      
+
       const reader = new FileReader();
       reader.onloadend = () => {
         setPdfPreview(reader.result as string);
@@ -147,19 +147,24 @@ function App() {
       let currentMessage = 'PDF successfully converted to PDF/A-3!';
       let decodedErrors: ValidationError[] = [];
 
-      const validationErrorsHeader = response.headers['x-xml-validation-errors'];
-      if (validationErrorsHeader) {
-        try {
-          decodedErrors = JSON.parse(atob(validationErrorsHeader));
+      try {
+        const xmlHeader   = response.headers['x-xml-validation-errors'];
+        const pdfHeader   = response.headers['x-pdf-validation-errors'];
+        const pdfa3Header = response.headers['x-pdfa3-validation-errors'];
+        const xmlPart:   ValidationError[] = xmlHeader   ? JSON.parse(xmlHeader)   : [];
+        const pdfPart:   ValidationError[] = pdfHeader   ? JSON.parse(pdfHeader)   : [];
+        const pdfa3Part: ValidationError[] = pdfa3Header ? JSON.parse(pdfa3Header) : [];
+        decodedErrors = [...xmlPart, ...pdfPart, ...pdfa3Part];
+        if (decodedErrors.length > 0) {
           setXmlErrors(decodedErrors);
           const hasErrors = decodedErrors.some((e: ValidationError) => e.type === 'ERROR' || e.type === 'FATAL');
           currentStatus = hasErrors ? 'error' : 'success';
-          currentMessage = hasErrors 
-            ? 'PDF converted, but ZUGFeRD validation failed with errors.' 
+          currentMessage = hasErrors
+            ? 'PDF converted, but validation failed with errors.'
             : 'PDF converted with some validation notices.';
-        } catch (e) {
-          console.error('Failed to parse validation errors header', e);
         }
+      } catch (e) {
+        console.error('Failed to parse validation headers', e);
       }
 
       setStatus(currentStatus);
@@ -369,7 +374,7 @@ function App() {
               </div>
             )}
 
-            <StatusDisplay 
+            <StatusDisplay
               status={status}
               message={message}
               xmlErrors={xmlErrors}
