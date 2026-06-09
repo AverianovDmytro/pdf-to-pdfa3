@@ -11,7 +11,7 @@ interface StatusDisplayProps {
 
 export function StatusDisplay({ status, message, xmlErrors }: StatusDisplayProps) {
   const [expanded, setExpanded] = useState(false);
-  
+
   if (status === 'idle') return null;
 
   const hasIssues = xmlErrors.length > 0;
@@ -28,15 +28,15 @@ export function StatusDisplay({ status, message, xmlErrors }: StatusDisplayProps
       >
         <Icon icon={status === 'success' ? "ti:check" : "ti:alert-circle"} className="text-[16px]" />
         <span>{message}</span>
-        
+
         {hasIssues && (
           <div className="ml-auto flex items-center gap-2">
             <span className="text-[11px] font-bold bg-[rgba(0,0,0,0.05)] px-2 py-0.5 rounded-full">
               {xmlErrors.length} issues
             </span>
-            <Icon 
-              icon="ti:chevron-down" 
-              className={cn("text-[14px] transition-transform", expanded && "rotate-180")} 
+            <Icon
+              icon="ti:chevron-down"
+              className={cn("text-[14px] transition-transform", expanded && "rotate-180")}
             />
           </div>
         )}

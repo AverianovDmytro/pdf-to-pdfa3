@@ -69,38 +69,172 @@ If you see an error like "Specify a Node.js runtime correctly" in IntelliJ IDEA:
 **Content-Type**: `multipart/form-data`
 
 #### Request Parameters
-- `file`: The PDF file to be converted (Binary).
-- `xmlFile`: (Optional) The ZUGFeRD XML file to be embedded (Binary).
 
-#### Response
-- `200 OK`: Returns the converted PDF file as a download (`application/pdf`).
-- `400 Bad Request`: Invalid input (e.g. empty file).
-- `429 Too Many Requests`: Rate limit exceeded.
-- `500 Internal Server Error`: Conversion failed.
+| Parameter | Type   | Required | Description |
+|-----------|--------|----------|-------------|
+| `file`    | File   | Yes      | Source PDF to convert |
+| `xmlFile` | File   | No       | ZUGFeRD / Factur-X XML to embed |
+| `profile` | String | No       | ZUGFeRD profile name (default: `BASIC`) |
+
+#### Response — 200 OK
+
+The response body is the converted **PDF/A-3 binary** (`application/pdf`).  
+Validation results are returned as **response headers** — the body always contains the file.
+
+| Header | Present when | Content |
+|--------|-------------|---------|
+| `X-XML-Validation-Errors` | XML file has XSD validation issues | JSON array of `ValidationError` |
+| `X-PDF-Validation-Errors` | Converted PDF has PDF/A-3 compliance issues | JSON array of `ValidationError` |
+
+`ValidationError` object structure:
+```json
+{
+  "line":     1,
+  "column":   42,
+  "location": "/rsm:CrossIndustryInvoice/...",
+  "message":  "cvc-complex-type.2.4.a: ...",
+  "type":     "ERROR"
+}
+```
+`type` is one of `ERROR`, `FATAL`, or `WARNING`.
+
+#### Error Responses
+
+| Status | Reason |
+|--------|--------|
+| `400 Bad Request` | File is not a valid PDF, or XML fails XSD validation |
+| `429 Too Many Requests` | Rate limit exceeded |
+| `500 Internal Server Error` | Conversion failed |
 
 ---
 
 ### Postman Example
 
-To test the service in Postman:
+#### Step 1 — Send the request and save the PDF
 
-1. Create a new request.
-2. Set the method to **POST**.
-3. Enter the URL: `http://localhost:8084/api/v1/convert`.
-4. Go to the **Body** tab.
-5. Select **form-data**.
-6. In the **Key** field, type `file` and change the type from "Text" to **File**. Select your PDF.
-7. (Optional) Add another key `xmlFile`, change the type to **File**, and select your ZUGFeRD XML.
-8. Click **Send**.
-9. Postman will show the response; you can use "Save Response -> Save to a file" to see the converted PDF.
+1. Create a new **POST** request.
+2. URL: `http://localhost:8084/api/v1/convert`
+3. **Body** tab → select **form-data**.
+4. Add key `file`, change type to **File**, select your PDF.
+5. (Optional) Add key `xmlFile`, change type to **File**, select your ZUGFeRD XML.
+6. Click **Send**.
+7. In the response pane, click **Save Response → Save to a file** to download the converted PDF.
+
+#### Step 2 — Read the validation results
+
+After the response arrives, click the **Headers** tab in the Postman response pane.  
+Look for the two validation headers:
+
+- `X-XML-Validation-Results`
+- `X-PDF-Validation-Results`
+
+Each header value is a **plain JSON array** — no encoding needed. You can read it directly in Postman, Navision, or any HTTP client.
+
+To log and assert the results in Postman, add the following to the **Tests** tab of your request before sending:
+
+```javascript
+// Read and log XML validation errors
+const xmlHeader = pm.response.headers.get("X-XML-Validation-Errors");
+if (xmlHeader) {
+    const xmlErrors = JSON.parse(xmlHeader);
+    console.log("=== XML Validation Errors ===");
+    xmlErrors.forEach(e =>
+        console.log(`[${e.type}] Line ${e.line}:${e.column} — ${e.message}`)
+    );
+    pm.test(`XML validation: ${xmlErrors.length} error(s)`, () => {
+        const fatal = xmlErrors.filter(e => e.type === "ERROR" || e.type === "FATAL");
+        pm.expect(fatal.length, "XML has errors").to.equal(0);
+    });
+} else {
+    console.log("XML Validation: OK (no issues)");
+}
+
+// Read and log PDF/A-3 validation errors
+const pdfHeader = pm.response.headers.get("X-PDF-Validation-Errors");
+if (pdfHeader) {
+    const pdfErrors = JSON.parse(pdfHeader);
+    console.log("=== PDF/A-3 Validation Errors ===");
+    pdfErrors.forEach(e =>
+        console.log(`[${e.type}] ${e.location || ""} — ${e.message}`)
+    );
+    pm.test(`PDF validation: ${pdfErrors.length} error(s)`, () => {
+        const fatal = pdfErrors.filter(e => e.type === "ERROR" || e.type === "FATAL");
+        pm.expect(fatal.length, "PDF has errors").to.equal(0);
+    });
+} else {
+    console.log("PDF/A-3 Validation: OK (no issues)");
+}
+```
+
+Open **View → Show Postman Console** (`Ctrl+Alt+C` / `Cmd+Alt+C`) to see the output.
+
+---
 
 ### cURL Example
 
 ```bash
+# Convert and capture response headers alongside the PDF
 curl -X POST http://localhost:8084/api/v1/convert \
   -F "file=@/path/to/invoice.pdf" \
   -F "xmlFile=@/path/to/zugferd.xml" \
+  --dump-header headers.txt \
   --output converted_invoice.pdf
+
+# Pretty-print XML validation errors (if header is present)
+grep "X-XML-Validation-Errors" headers.txt \
+  | awk -F': ' '{print $2}' \
+  | tr -d '\r' \
+  | python3 -m json.tool
+
+# Pretty-print PDF/A-3 validation errors (if header is present)
+grep "X-PDF-Validation-Errors" headers.txt \
+  | awk -F': ' '{print $2}' \
+  | tr -d '\r' \
+  | python3 -m json.tool
+```
+
+If neither header is present, both the XML and the converted PDF passed validation without issues.
+
+---
+
+### Navision / Business Central (AL) Example
+
+The headers contain plain JSON, so no Base64 decoding is needed. Read the header value and parse it directly:
+
+```al
+procedure ReadValidationResults(Response: HttpResponseMessage)
+var
+    XmlHeader: Text;
+    PdfHeader: Text;
+    XmlErrors: JsonArray;
+    PdfErrors: JsonArray;
+    ErrorToken: JsonToken;
+    ErrorObj: JsonObject;
+    MsgToken: JsonToken;
+    TypeToken: JsonToken;
+begin
+    if Response.Headers.Contains('X-XML-Validation-Errors') then begin
+        Response.Headers.GetValues('X-XML-Validation-Errors', XmlHeader);
+        XmlErrors.ReadFrom(XmlHeader);
+        foreach ErrorToken in XmlErrors do begin
+            ErrorObj := ErrorToken.AsObject();
+            ErrorObj.Get('message', MsgToken);
+            ErrorObj.Get('type', TypeToken);
+            Message('XML [%1] %2', TypeToken.AsValue().AsText(), MsgToken.AsValue().AsText());
+        end;
+    end;
+
+    if Response.Headers.Contains('X-PDF-Validation-Errors') then begin
+        Response.Headers.GetValues('X-PDF-Validation-Errors', PdfHeader);
+        PdfErrors.ReadFrom(PdfHeader);
+        foreach ErrorToken in PdfErrors do begin
+            ErrorObj := ErrorToken.AsObject();
+            ErrorObj.Get('message', MsgToken);
+            ErrorObj.Get('type', TypeToken);
+            Message('PDF [%1] %2', TypeToken.AsValue().AsText(), MsgToken.AsValue().AsText());
+        end;
+    end;
+end;
 ```
 
 ---

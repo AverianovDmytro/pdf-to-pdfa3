@@ -90,94 +90,89 @@ public class PdfConversionController {
         log.info("Starting async conversion for file: {} (PDF size: {} bytes)", originalFilename, pdfFileBytes.length);
 
         CompletableFuture.runAsync(() -> {
-            List<XmlValidationService.ValidationError> xmlErrors = null;
-            List<XmlValidationService.ValidationError> pdfErrors = new java.util.ArrayList<>();
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+            // Step 1: Validate source PDF
+            List<XmlValidationService.ValidationError> pdfErrors =
+                    pdfConversionService.validateSourcePdf(pdfFileBytes);
+
+            // Step 2: Validate XML
+            List<XmlValidationService.ValidationError> xmlErrors = new java.util.ArrayList<>();
+            if (xmlFileBytes != null) {
+                xmlErrors = xmlValidationService.validateXmlDetailed(xmlFileBytes, profile);
+                if (!xmlErrors.isEmpty()) {
+                    log.warn("XML validation issues for file: {}. Count: {}", xmlOriginalFilename, xmlErrors.size());
+                }
+            }
+
+            // Step 3: Convert
+            byte[] convertedPdf = null;
+            Exception conversionException = null;
             try {
-                if (xmlFileBytes != null) {
-                    xmlErrors = xmlValidationService.validateXmlDetailed(xmlFileBytes, profile);
-                    if (!xmlErrors.isEmpty()) {
-                        log.warn("XML Validation failed for file: {}. Errors: {}", xmlOriginalFilename, xmlErrors.size());
-                    }
-                }
-
-                // Call service with bytes instead of MultipartFile if possible, or create a mock
-                // Actually, let's update the service to accept bytes or keep it as is if it handles bytes
-                byte[] convertedPdf = pdfConversionService.convertToPdfA3(pdfFileBytes, originalFilename, xmlFileBytes, xmlOriginalFilename, profile, ipAddress, pdfErrors);
-
-                String newFilename = (originalFilename != null ? originalFilename.replace(".pdf", "") : "converted") + "_a3.pdf";
-
-                log.info("Successfully converted file: {} to {} in {}ms", originalFilename, newFilename, System.currentTimeMillis() - startTime);
-
-                ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.ok()
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + newFilename + "\"")
-                        .contentType(MediaType.APPLICATION_PDF);
-
-                List<XmlValidationService.ValidationError> allErrors = new java.util.ArrayList<>();
-                if (xmlErrors != null) {
-                    allErrors.addAll(xmlErrors);
-                }
-                allErrors.addAll(pdfErrors);
-
-                if (!allErrors.isEmpty()) {
-                    try {
-                        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                        String errorsJson = mapper.writeValueAsString(allErrors);
-                        String encodedErrors = java.util.Base64.getEncoder().encodeToString(errorsJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                        responseBuilder.header("X-XML-Validation-Errors", encodedErrors);
-                        responseBuilder.header("Access-Control-Expose-Headers", "X-XML-Validation-Errors");
-                    } catch (Exception e) {
-                        log.error("Failed to serialize validation errors", e);
-                    }
-                }
-
-                if (!deferredResult.isSetOrExpired()) {
-                    deferredResult.setResult(responseBuilder.body(convertedPdf));
-                } else {
-                    log.warn("Conversion finished but result already set or expired for file: {}", originalFilename);
-                }
+                convertedPdf = pdfConversionService.convertToPdfA3(
+                        pdfFileBytes, originalFilename, xmlFileBytes, xmlOriginalFilename, profile, ipAddress);
+                log.info("Successfully converted file: {} in {}ms", originalFilename, System.currentTimeMillis() - startTime);
             } catch (Exception e) {
-                log.error("Failed to convert PDF file: {}", originalFilename, e);
-                if (!deferredResult.isSetOrExpired()) {
-                    // Try to get the real cause if it's wrapped in an IOException or similar
-                    Throwable rootCause = e;
-                    while (rootCause.getCause() != null && rootCause != rootCause.getCause()) {
-                        rootCause = rootCause.getCause();
-                    }
-                    
-                    String errorMessage = rootCause.getMessage();
-                    if (errorMessage == null || errorMessage.isEmpty()) {
-                        errorMessage = e.getMessage();
-                    }
-                    if (errorMessage == null || errorMessage.isEmpty()) {
-                        errorMessage = "An unexpected error occurred during conversion";
-                    }
+                conversionException = e;
+                log.error("Conversion failed for file: {}", originalFilename, e);
+            }
+
+            // Step 4: Validate result (only when conversion succeeded)
+            List<XmlValidationService.ValidationError> pdfa3Errors = new java.util.ArrayList<>();
+            if (convertedPdf != null) {
+                pdfa3Errors.addAll(pdfConversionService.validatePdfA3(convertedPdf));
+            } else {
+                Throwable root = conversionException;
+                while (root != null && root.getCause() != null && root != root.getCause()) root = root.getCause();
+                String reason = root != null && root.getMessage() != null ? root.getMessage() : "Conversion failed";
+                pdfa3Errors.add(XmlValidationService.ValidationError.builder()
+                        .message("PDF/A-3 validation was not performed: " + reason)
+                        .type("WARNING")
+                        .build());
+            }
+
+            // Build and send response
+            try {
+                String xmlJson    = mapper.writeValueAsString(xmlErrors);
+                String pdfJson    = mapper.writeValueAsString(pdfErrors);
+                String pdfa3Json  = mapper.writeValueAsString(pdfa3Errors);
+                String exposeHdr  = "X-XML-Validation-Errors, X-PDF-Validation-Errors, X-PDFA3-Validation-Errors";
+
+                if (convertedPdf != null && !deferredResult.isSetOrExpired()) {
+                    String newFilename = (originalFilename != null ? originalFilename.replace(".pdf", "") : "converted") + "_a3.pdf";
+                    deferredResult.setResult(
+                            ResponseEntity.ok()
+                                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + newFilename + "\"")
+                                    .contentType(MediaType.APPLICATION_PDF)
+                                    .header("X-XML-Validation-Errors",   xmlJson)
+                                    .header("X-PDF-Validation-Errors",   pdfJson)
+                                    .header("X-PDFA3-Validation-Errors", pdfa3Json)
+                                    .header("Access-Control-Expose-Headers", exposeHdr)
+                                    .body(convertedPdf));
+                } else if (!deferredResult.isSetOrExpired()) {
+                    Throwable root = conversionException;
+                    while (root != null && root.getCause() != null && root != root.getCause()) root = root.getCause();
+                    String errorMessage = root != null && root.getMessage() != null ? root.getMessage() : "An unexpected error occurred";
+                    HttpStatus status = (root instanceof SAXException || root instanceof IllegalArgumentException)
+                            ? HttpStatus.BAD_REQUEST : HttpStatus.INTERNAL_SERVER_ERROR;
 
                     Map<String, Object> errorMap = new HashMap<>();
-                    errorMap.put("error", errorMessage);
-                    errorMap.put("message", errorMessage); // frontend uses message
-                    errorMap.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+                    errorMap.put("error",   errorMessage);
+                    errorMap.put("message", errorMessage);
+                    errorMap.put("status",  status.value());
                     errorMap.put("timestamp", System.currentTimeMillis());
-                    
-                    List<XmlValidationService.ValidationError> allErrors = new java.util.ArrayList<>();
-                    if (xmlErrors != null) allErrors.addAll(xmlErrors);
-                    if (pdfErrors != null) allErrors.addAll(pdfErrors);
-                    if (!allErrors.isEmpty()) {
-                        errorMap.put("errors", allErrors);
-                    }
-                    
-                    // If it's a validation error or something that should be 400
-                    HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
-                    if (rootCause instanceof SAXException || 
-                        rootCause instanceof IllegalArgumentException || 
-                        (errorMessage != null && errorMessage.contains("ZUGFeRD XML does not contain"))) {
-                        status = HttpStatus.BAD_REQUEST;
-                        errorMap.put("status", HttpStatus.BAD_REQUEST.value());
-                    }
 
-                    deferredResult.setResult(ResponseEntity.status(status)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .body(errorMap));
+                    deferredResult.setResult(
+                            ResponseEntity.status(status)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .header("X-XML-Validation-Errors",   xmlJson)
+                                    .header("X-PDF-Validation-Errors",   pdfJson)
+                                    .header("X-PDFA3-Validation-Errors", pdfa3Json)
+                                    .header("Access-Control-Expose-Headers", exposeHdr)
+                                    .body(errorMap));
                 }
+            } catch (Exception serEx) {
+                log.error("Failed to build response", serEx);
             }
         });
 

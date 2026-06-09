@@ -59,10 +59,6 @@ public class PdfConversionService {
     }
 
     public byte[] convertToPdfA3(byte[] pdfBytes, String originalFilename, byte[] xmlFileBytes, String xmlOriginalFilename, String zugferdConformanceLevel, String ipAddress) throws Exception {
-        return convertToPdfA3(pdfBytes, originalFilename, xmlFileBytes, xmlOriginalFilename, zugferdConformanceLevel, ipAddress, null);
-    }
-
-    public byte[] convertToPdfA3(byte[] pdfBytes, String originalFilename, byte[] xmlFileBytes, String xmlOriginalFilename, String zugferdConformanceLevel, String ipAddress, List<XmlValidationService.ValidationError> pdfErrors) throws Exception {
         long startTime = System.currentTimeMillis();
         log.info("[CONVERSION_START] File: {}, Profile: {}, IP: {}", originalFilename, zugferdConformanceLevel, ipAddress);
 
@@ -71,7 +67,7 @@ public class PdfConversionService {
                 .status("PROCESSING")
                 .ipAddress(ipAddress)
                 .build();
-        
+
         if (xmlFileBytes != null) {
             conversion.setXmlFilename(xmlOriginalFilename);
             conversion.setXmlSize((long) xmlFileBytes.length);
@@ -86,20 +82,14 @@ public class PdfConversionService {
         }
 
         if (xmlFileBytes != null) {
-            try {
-                log.info("[XML_VALIDATION] Validating captured XML bytes against XSD");
-                validateXmlAgainstXsd(xmlFileBytes);
-                log.info("[XML_VALIDATION_SUCCESS] XML bytes are valid");
-            } catch (Exception e) {
-                log.warn("[XML_VALIDATION_WARNING] XML validation failed: {}", e.getMessage());
-                // Throw it to catch it in the controller and show to the user as a real error
-                throw e;
-            }
+            log.info("[XML_VALIDATION] Validating XML against XSD");
+            validateXmlAgainstXsd(xmlFileBytes);
+            log.info("[XML_VALIDATION_SUCCESS] XML is valid");
         }
 
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             conversion.setOriginalSize((long) pdfBytes.length);
-            
+
             String targetFilename = (originalFilename != null ? originalFilename.replace(".pdf", "") : "converted") + "_a3.pdf";
             conversion.setTargetFilename(targetFilename);
 
@@ -112,7 +102,7 @@ public class PdfConversionService {
             }
 
             exporter.setProfile(Profiles.getByName(zugferdConformanceLevel));
-            
+
             if (xmlFileBytes != null) {
                 log.info("[XML_ATTACH] Attaching XML bytes");
                 exporter.setXML(xmlFileBytes);
@@ -125,23 +115,11 @@ public class PdfConversionService {
             log.info("[PDF_EXPORT] Exporting to PDF/A-3");
             exporter.export(out);
             byte[] convertedBytes = out.toByteArray();
-            
-            log.info("[PDFA_VALIDATION] Verifying PDF/A-3 compliance for document size: {} bytes", convertedBytes.length);
-            long maxSize = parseSize(validationMaxSizeStr);
-            if (convertedBytes.length <= maxSize) {
-                List<XmlValidationService.ValidationError> errors = validatePdfA3(convertedBytes);
-                if (pdfErrors != null && errors != null) {
-                    pdfErrors.addAll(errors);
-                }
-            } else {
-                log.info("[PDFA_VALIDATION_SKIPPED] File size > {}, skipping validation to speed up processing", validationMaxSizeStr);
-            }
-            
+
             log.info("[CONVERSION_SUCCESS] Created PDF/A-3 document, size: {} bytes", convertedBytes.length);
-            
             conversion.setConvertedSize((long) convertedBytes.length);
             updateConversionStatus(conversion, "COMPLETED", null, startTime);
-            
+
             return convertedBytes;
         } catch (IOException e) {
             log.error("[CONVERSION_FAILED] IOException for file: {}", originalFilename, e);
@@ -150,7 +128,7 @@ public class PdfConversionService {
         } catch (Exception e) {
             log.error("[CONVERSION_FAILED] Unexpected error for file: {}", originalFilename, e);
             updateConversionStatus(conversion, "FAILED", e.getMessage(), startTime);
-            throw new IOException("Error during PDF conversion", e);
+            throw e;
         }
     }
 
@@ -190,60 +168,95 @@ public class PdfConversionService {
         validateXmlAgainstXsd(xmlFile.getBytes());
     }
 
+    public List<XmlValidationService.ValidationError> validateSourcePdf(byte[] pdfBytes) {
+        List<XmlValidationService.ValidationError> errors = new ArrayList<>();
+        if (!isPdfFile(pdfBytes)) {
+            errors.add(XmlValidationService.ValidationError.builder()
+                    .message("File is not a valid PDF (invalid file header)")
+                    .type("ERROR")
+                    .build());
+            return errors;
+        }
+        try {
+            IZUGFeRDExporter exporter = new ZUGFeRDExporterFromA1();
+            ((ZUGFeRDExporterFromA1) exporter).ignorePDFAErrors();
+            try (java.io.ByteArrayInputStream is = new java.io.ByteArrayInputStream(pdfBytes)) {
+                exporter.load(is);
+            }
+        } catch (Exception e) {
+            errors.add(XmlValidationService.ValidationError.builder()
+                    .message("Source PDF could not be loaded: " + e.getMessage())
+                    .type("ERROR")
+                    .build());
+        }
+        return errors;
+    }
+
     public List<XmlValidationService.ValidationError> validatePdfA3(byte[] pdfBytes) {
+        long maxSize = parseSize(validationMaxSizeStr);
+        if (pdfBytes.length > maxSize) {
+            log.info("[PDFA3_VALIDATION_SKIPPED] File size {} > {}", pdfBytes.length, validationMaxSizeStr);
+            List<XmlValidationService.ValidationError> result = new ArrayList<>();
+            result.add(XmlValidationService.ValidationError.builder()
+                    .message("Validation was not processed: file size exceeds the limit of " + validationMaxSizeStr)
+                    .type("WARNING")
+                    .build());
+            return result;
+        }
         List<XmlValidationService.ValidationError> errors = new ArrayList<>();
         try {
             ZUGFeRDValidator validator = new ZUGFeRDValidator();
-            // Need to write to temp file as ZUGFeRDValidator.validate(String) expects a filename
-            java.io.File tempFile = java.io.File.createTempFile("pdfa-validation", ".pdf");
+            java.io.File tempFile = java.io.File.createTempFile("pdfa3-validation", ".pdf");
             try {
                 java.nio.file.Files.write(tempFile.toPath(), pdfBytes);
                 String report = validator.validate(tempFile.getAbsolutePath());
-                parseMustangReport(report, errors);
+                parseMustangReport(report, errors, false);
             } finally {
                 tempFile.delete();
             }
         } catch (Exception e) {
             log.error("Error during PDF/A-3 validation", e);
+            errors.add(XmlValidationService.ValidationError.builder()
+                    .message("PDF/A-3 validation failed unexpectedly: " + e.getMessage())
+                    .type("ERROR")
+                    .build());
         }
         return errors;
     }
 
-    protected void parseMustangReport(String report, List<XmlValidationService.ValidationError> errors) {
-        // Mustang report is XML. 
-        if (report != null && !report.isEmpty()) {
-            try {
-                DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-                dbFactory.setNamespaceAware(true);
-                DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-                java.io.InputStream is = new java.io.ByteArrayInputStream(report.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                Document doc = dBuilder.parse(is);
-                doc.getDocumentElement().normalize();
+    protected void parseMustangReport(String report, List<XmlValidationService.ValidationError> errors, boolean pdfStructureOnly) {
+        if (report == null || report.isEmpty()) return;
+        try {
+            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+            dbFactory.setNamespaceAware(true);
+            DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+            java.io.InputStream is = new java.io.ByteArrayInputStream(report.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            Document doc = dBuilder.parse(is);
+            doc.getDocumentElement().normalize();
 
-                // 1. Capture <error>, <warning>, <notice>
-                String[] tags = {"error", "warning", "notice"};
-                for (String tag : tags) {
-                    NodeList nodeList = doc.getElementsByTagName(tag);
-                    for (int i = 0; i < nodeList.getLength(); i++) {
-                        Element element = (Element) nodeList.item(i);
-                        String message = element.getTextContent().trim();
-                        String type = tag.equalsIgnoreCase("notice") ? "WARNING" : tag.toUpperCase();
-                        
-                        errors.add(XmlValidationService.ValidationError.builder()
-                                .message(message)
-                                .type(type)
-                                .build());
-                    }
+            // PDF/A-3 structural errors — always included
+            String[] tags = {"error", "warning", "notice"};
+            for (String tag : tags) {
+                NodeList nodeList = doc.getElementsByTagName(tag);
+                for (int i = 0; i < nodeList.getLength(); i++) {
+                    Element element = (Element) nodeList.item(i);
+                    String message = element.getTextContent().trim();
+                    String type = tag.equalsIgnoreCase("notice") ? "WARNING" : tag.toUpperCase();
+                    errors.add(XmlValidationService.ValidationError.builder()
+                            .message(message)
+                            .type(type)
+                            .build());
                 }
+            }
 
-                // 2. Capture <failedAssert> (Schematron)
+            // ZUGFeRD business-rule assertions (Schematron) — skipped in PDF-structure-only mode
+            if (!pdfStructureOnly) {
                 NodeList failedAsserts = doc.getElementsByTagName("failedAssert");
                 for (int i = 0; i < failedAsserts.getLength(); i++) {
                     Element element = (Element) failedAsserts.item(i);
                     String test = element.getAttribute("test");
                     String location = element.getAttribute("location");
                     String message = element.getTextContent().trim();
-                    
                     errors.add(XmlValidationService.ValidationError.builder()
                             .message(message + (test.isEmpty() ? "" : " (Test: " + test + ")"))
                             .location(location)
@@ -251,23 +264,26 @@ public class PdfConversionService {
                             .build());
                 }
 
-                // 3. Fallback if report says invalid but no errors found
+                // Generic ZUGFeRD content fallback — skipped in PDF-structure-only mode
                 if (errors.isEmpty() && report.contains("status=\"invalid\"")) {
                     errors.add(XmlValidationService.ValidationError.builder()
                             .message("ZUGFeRD validation failed (Mustang report indicates invalid status)")
                             .type("ERROR")
                             .build());
                 }
-
-            } catch (Exception parseEx) {
-                log.error("Failed to parse Mustang XML report, falling back to regex", parseEx);
-                // Fallback to regex if XML parsing fails
-                parseReportWithRegex(report, errors);
             }
+
+        } catch (Exception parseEx) {
+            log.error("Failed to parse Mustang XML report, falling back to regex", parseEx);
+            parseReportWithRegex(report, errors, pdfStructureOnly);
         }
     }
 
-    private void parseReportWithRegex(String report, List<XmlValidationService.ValidationError> errors) {
+    protected void parseMustangReport(String report, List<XmlValidationService.ValidationError> errors) {
+        parseMustangReport(report, errors, false);
+    }
+
+    private void parseReportWithRegex(String report, List<XmlValidationService.ValidationError> errors, boolean pdfStructureOnly) {
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("<(error|notice|warning)>(.*?)</\\1>", java.util.regex.Pattern.DOTALL);
         java.util.regex.Matcher matcher = pattern.matcher(report);
         while (matcher.find()) {
@@ -279,8 +295,8 @@ public class PdfConversionService {
                     .type(type.equals("NOTICE") ? "WARNING" : type)
                     .build());
         }
-        
-        if (errors.isEmpty() && report.contains("status=\"invalid\"")) {
+
+        if (!pdfStructureOnly && errors.isEmpty() && report.contains("status=\"invalid\"")) {
             java.util.regex.Pattern summaryPattern = java.util.regex.Pattern.compile("status=\"invalid\"\\s+message=\"(.*?)\"");
             java.util.regex.Matcher summaryMatcher = summaryPattern.matcher(report);
             if (summaryMatcher.find()) {
