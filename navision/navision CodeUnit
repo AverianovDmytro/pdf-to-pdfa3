@@ -1,0 +1,178 @@
+# NAV 2017 CodeUnit — ZUGFeRD Variablen
+
+## Globals
+
+| Name | DataType | Subtype | Length |
+|------|----------|---------|--------|
+| SalesInvoiceHeader | Record | Sales Invoice Header | |
+| DotNetPath | DotNet | System.IO.Path.'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089' | |
+| DotNetDirectory | DotNet | System.IO.Directory.'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089' | |
+| DotNetFile | DotNet | System.IO.File.'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089' | |
+| HttpClient | DotNet | System.Net.Http.HttpClient.'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a' | |
+| MultipartContent | DotNet | System.Net.Http.MultipartFormDataContent.'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a' | |
+| PdfContent | DotNet | System.Net.Http.ByteArrayContent.'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a' | |
+| XmlContent | DotNet | System.Net.Http.ByteArrayContent.'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a' | |
+| ProfileContent | DotNet | System.Net.Http.StringContent.'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a' | |
+| Response | DotNet | System.Net.Http.HttpResponseMessage.'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a' | |
+| RespHeaders | DotNet | System.Net.Http.Headers.HttpResponseHeaders.'System.Net.Http, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a' | |
+| HdrEnum | DotNet | System.Collections.IEnumerator.'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089' | |
+| ApiUrl | Text | | 250 |
+| TempFolder | Text | | 250 |
+| PDFPath | Text | | 250 |
+| XMLPath | Text | | 250 |
+| OutPath | Text | | 250 |
+| XmlErrors | Text | | 1024 |
+| PdfErrors | Text | | 1024 |
+| PdfA3Errors | Text | | 1024 |
+
+---
+
+## Assemblies
+
+| Assembly | PublicKeyToken |
+|----------|---------------|
+| mscorlib | b77a5c561934e089 |
+| System.Net.Http | b03f5f7f11d50a3a |
+
+---
+
+## Vollständiger Code
+
+```al
+PROCEDURE ConvertPdfToZugFerd@50000();
+BEGIN
+    // 1. Pfade vorbereiten
+    ApiUrl     := 'http://168.119.100.89:8084/api/v1/convert';
+    TempFolder := DotNetPath.GetTempPath + 'zugferd_' + DELCHR(FORMAT(CREATEGUID()), '=', '{}');
+    PDFPath    := TempFolder + '\invoice.pdf';
+    XMLPath    := TempFolder + '\invoice.xml';
+    OutPath    := TempFolder + '\invoice_zugferd.pdf';
+
+    // 2. Ordner erstellen + Dateien kopieren
+    DotNetDirectory.CreateDirectory(TempFolder);
+    DotNetFile.Copy('\\bc\e$\Test\ZugFerd_Gutschrift.pdf', PDFPath, TRUE);
+    DotNetFile.Copy('\\bc\e$\Test\ZugFerd_Gutschrift.xml', XMLPath, TRUE);
+
+    // 3. Multipart aufbauen
+    MultipartContent := MultipartContent.MultipartFormDataContent();
+
+    PdfContent := PdfContent.ByteArrayContent(DotNetFile.ReadAllBytes(PDFPath));
+    MultipartContent.Add(PdfContent, 'file', 'invoice.pdf');
+
+    XmlContent := XmlContent.ByteArrayContent(DotNetFile.ReadAllBytes(XMLPath));
+    MultipartContent.Add(XmlContent, 'xmlFile', 'invoice.xml');
+
+    ProfileContent := ProfileContent.StringContent('BASIC');
+    MultipartContent.Add(ProfileContent, 'profile');
+
+    // 4. POST senden
+    HttpClient := HttpClient.HttpClient();
+    Response   := HttpClient.PostAsync(ApiUrl, MultipartContent).Result;
+
+    IF Response.StatusCode <> 200 THEN
+        ERROR('API Fehler: %1', Response.ReasonPhrase);
+
+    // 5. ZUGFeRD PDF speichern
+    DotNetFile.WriteAllBytes(OutPath, Response.Content.ReadAsByteArrayAsync().Result);
+
+    // 6. Response Headers lesen
+    RespHeaders := Response.Headers;
+
+    IF RespHeaders.Contains('X-XML-Validation-Errors') THEN BEGIN
+        HdrEnum := RespHeaders.GetValues('X-XML-Validation-Errors').GetEnumerator();
+        IF HdrEnum.MoveNext THEN
+            XmlErrors := FORMAT(HdrEnum.Current);
+    END;
+
+    IF RespHeaders.Contains('X-PDF-Validation-Errors') THEN BEGIN
+        HdrEnum := RespHeaders.GetValues('X-PDF-Validation-Errors').GetEnumerator();
+        IF HdrEnum.MoveNext THEN
+            PdfErrors := FORMAT(HdrEnum.Current);
+    END;
+
+    IF RespHeaders.Contains('X-PDFA3-Validation-Errors') THEN BEGIN
+        HdrEnum := RespHeaders.GetValues('X-PDFA3-Validation-Errors').GetEnumerator();
+        IF HdrEnum.MoveNext THEN
+            PdfA3Errors := FORMAT(HdrEnum.Current);
+    END;
+
+    // 7. Ergebnis anzeigen
+    MESSAGE('ZUGFeRD PDF: %1\n\nXML Errors: %2\nPDF Errors: %3\nPDF/A-3 Errors: %4',
+        OutPath, XmlErrors, PdfErrors, PdfA3Errors);
+END;
+```
+
+
+Documentation()
+
+OnRun()
+BEGIN
+    // PDF speichern
+    //SalesInvoiceHeader.SETRANGE("No.", '102017');
+    //REPORT.SAVEASPDF(206, PdfFile);
+
+
+    // 1. Pfade vorbereiten
+    ApiUrl     := 'http://168.119.100.89:8084/api/v1/convert/';
+    //TENANTID : = 's;ldkjfsj';
+    TempFolder := DotNetPath.GetTempPath + 'zugferd_' + DELCHR(FORMAT(CREATEGUID()), '=', '{}');
+    PDFPath    := TempFolder + '\invoice.pdf';
+    XMLPath    := TempFolder + '\invoice.xml';
+    OutPath    := TempFolder + '\invoice_zugferd.pdf';
+
+    // 2. Ordner erstellen + Dateien kopieren
+    DotNetDirectory.CreateDirectory(TempFolder);
+    DotNetFile.Copy('\\bc\e$\Test\ZugFerd_Gutschrift.pdf', PDFPath, TRUE);
+    DotNetFile.Copy('\\bc\e$\Test\ZugFerd_Gutschrift.xml', XMLPath, TRUE);
+
+    // 3. Multipart aufbauen
+    MultipartContent := MultipartContent.MultipartFormDataContent();
+
+    PdfContent := PdfContent.ByteArrayContent(DotNetFile.ReadAllBytes(PDFPath));
+    MultipartContent.Add(PdfContent, 'file', 'invoice.pdf');
+
+    XmlContent := XmlContent.ByteArrayContent(DotNetFile.ReadAllBytes(XMLPath));
+    MultipartContent.Add(XmlContent, 'xmlFile', 'invoice.xml');
+
+    ProfileContent := ProfileContent.StringContent('BASIC');
+    MultipartContent.Add(ProfileContent, 'profile');
+
+    // 4. POST senden
+    HttpClient := HttpClient.HttpClient();
+    Response   := HttpClient.PostAsync(ApiUrl, MultipartContent).Result;
+
+    IF Response.StatusCode <> 200 THEN
+        ERROR('API Fehler: %1', Response.ReasonPhrase);
+
+    // 5. ZUGFeRD PDF speichern
+    DotNetFile.WriteAllBytes(OutPath, Response.Content.ReadAsByteArrayAsync().Result);
+
+    // 6. Aufräumen (optional)
+    // DotNetDirectory.Delete(TempFolder, TRUE);
+
+    MESSAGE('ZUGFeRD PDF gespeichert:\n%1', OutPath);
+
+    // Response Headers lesen
+    RespHeaders := Response.Headers;
+
+    IF RespHeaders.Contains('X-XML-Validation-Errors') THEN BEGIN
+        HdrEnum := RespHeaders.GetValues('X-XML-Validation-Errors').GetEnumerator();
+        IF HdrEnum.MoveNext THEN
+            XmlErrors := FORMAT(HdrEnum.Current);
+    END;
+
+    IF RespHeaders.Contains('X-PDF-Validation-Errors') THEN BEGIN
+        HdrEnum := RespHeaders.GetValues('X-PDF-Validation-Errors').GetEnumerator();
+        IF HdrEnum.MoveNext THEN
+            PdfErrors := FORMAT(HdrEnum.Current);
+    END;
+
+    IF RespHeaders.Contains('X-PDFA3-Validation-Errors') THEN BEGIN
+        HdrEnum := RespHeaders.GetValues('X-PDFA3-Validation-Errors').GetEnumerator();
+        IF HdrEnum.MoveNext THEN
+            PdfA3Errors := FORMAT(HdrEnum.Current);
+    END;
+
+    MESSAGE('ZUGFeRD PDF: %1\n\nXML Errors: %2\nPDF Errors: %3\nPDF/A-3 Errors: %4',
+        OutPath, XmlErrors, PdfErrors, PdfA3Errors);
+END;
